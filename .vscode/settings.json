@@ -1,0 +1,9 @@
+{
+  "dart.flutterSdkPath": ".fvm/versions/3.38.9",
+  "cmake.ignoreCMakeListsMissing": true,
+  "flutterTools.displayGetxContextMenu": true,
+  "flutterTools.displayMobxContextMenu": false,
+  "flutterTools.displayRiverpodContextMenu": false,
+  "flutterTools.displayModularContextMenu": false,
+  "flutterTools.displaySignalsContextMenu": false
+}
