@@ -33,7 +33,7 @@ class AboutPage extends StatelessWidget {
                       right: -50,
                       child: CircleAvatar(
                         radius: 100,
-                        backgroundColor: Colors.blue.withOpacity(0.1),
+                        backgroundColor: Colors.blue.withValues(alpha: 0.1),
                       ),
                     ),
                     Positioned(
@@ -41,7 +41,7 @@ class AboutPage extends StatelessWidget {
                       left: -30,
                       child: CircleAvatar(
                         radius: 60,
-                        backgroundColor: Colors.white.withOpacity(0.1),
+                        backgroundColor: Colors.white.withValues(alpha: 0.1),
                       ),
                     ),
                     Center(
@@ -84,7 +84,7 @@ class AboutPage extends StatelessWidget {
                         Text(
                           'توسعه‌دهنده اپلیکیشن سودوکو',
                           style: theme.textTheme.titleMedium?.copyWith(
-                            color: colorScheme.onSurface.withOpacity(0.7),
+                            color: colorScheme.onSurface.withValues(alpha: 0.7),
                             letterSpacing: 0.5,
                           ),
                         ),
@@ -101,10 +101,12 @@ class AboutPage extends StatelessWidget {
                     width: double.infinity,
                     padding: const EdgeInsets.all(20),
                     decoration: BoxDecoration(
-                      color: colorScheme.surfaceVariant.withOpacity(0.3),
+                      color: colorScheme.surfaceContainerHighest.withValues(
+                        alpha: 0.3,
+                      ),
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
-                        color: colorScheme.outline.withOpacity(0.1),
+                        color: colorScheme.outline.withValues(alpha: 0.1),
                       ),
                     ),
                     child: Text(
@@ -140,7 +142,7 @@ class AboutPage extends StatelessWidget {
                         Text(
                           'نسخه اپلیکیشن 1.0.0',
                           style: theme.textTheme.bodySmall?.copyWith(
-                            color: colorScheme.onSurface.withOpacity(0.5),
+                            color: colorScheme.onSurface.withValues(alpha: 0.5),
                           ),
                         ),
                         const SizedBox(height: 8),
@@ -152,7 +154,9 @@ class AboutPage extends StatelessWidget {
                             Text(
                               'ساخته شده با فلاتر',
                               style: theme.textTheme.bodySmall?.copyWith(
-                                color: colorScheme.onSurface.withOpacity(0.5),
+                                color: colorScheme.onSurface.withValues(
+                                  alpha: 0.5,
+                                ),
                               ),
                             ),
                           ],
@@ -198,10 +202,10 @@ class AboutPage extends StatelessWidget {
         decoration: BoxDecoration(
           color: colorScheme.surface,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: colorScheme.outline.withOpacity(0.1)),
+          border: Border.all(color: colorScheme.outline.withValues(alpha: 0.1)),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.03),
+              color: Colors.black.withValues(alpha: 0.03),
               blurRadius: 10,
               offset: const Offset(0, 4),
             ),
@@ -212,7 +216,7 @@ class AboutPage extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: color.withOpacity(0.1),
+                color: color.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Icon(icon, color: color),
@@ -232,7 +236,7 @@ class AboutPage extends StatelessWidget {
                   Text(
                     subtitle,
                     style: TextStyle(
-                      color: colorScheme.onSurface.withOpacity(0.6),
+                      color: colorScheme.onSurface.withValues(alpha: 0.6),
                       fontSize: 13,
                     ),
                   ),
@@ -242,7 +246,7 @@ class AboutPage extends StatelessWidget {
             Icon(
               Icons.arrow_forward_ios_rounded,
               size: 16,
-              color: colorScheme.onSurface.withOpacity(0.3),
+              color: colorScheme.onSurface.withValues(alpha: 0.3),
             ),
           ],
         ),
@@ -264,6 +268,6 @@ class AboutPage extends StatelessWidget {
       queryParameters: {'subject': 'sudoku game...'},
     );
 
-    launch(emailLaunchUri.toString());
+    await launchUrl(emailLaunchUri);
   }
 }
