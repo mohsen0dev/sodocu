@@ -238,7 +238,7 @@ class HomeController extends GetxController {
       return;
     }
 
-    if (!_canPlaceCurrentBoard(row, col, newNumber)) {
+    if (!_canPlace(_currentBoard(), row, col, newNumber)) {
       showError('عدد $newNumber در این خانه قابل قرار نیست!');
       // شمارنده را برگردان
       if (prevValue != 0) {
@@ -299,64 +299,40 @@ class HomeController extends GetxController {
     return _solution![row][col] == value;
   }
 
+  /// بررسی می‌کند که آیا می‌توان عدد [number] را در خانه [row],[col] قرار داد.
+  /// خود خانه هدف (که مقدار قبلی آن بازنویسی می‌شود) نادیده گرفته می‌شود.
   bool _canPlace(List<List<int>> board, int row, int col, int number) {
     for (int c = 0; c < 9; c++) {
-      if (board[row][c] == number) return false;
+      if (c != col && board[row][c] == number) return false;
     }
     for (int r = 0; r < 9; r++) {
-      if (board[r][col] == number) return false;
+      if (r != row && board[r][col] == number) return false;
     }
     int startRow = (row ~/ 3) * 3;
     int startCol = (col ~/ 3) * 3;
     for (int r = startRow; r < startRow + 3; r++) {
       for (int c = startCol; c < startCol + 3; c++) {
-        if (board[r][c] == number) return false;
+        if ((r != row || c != col) && board[r][c] == number) return false;
       }
     }
     return true;
   }
 
-  bool _canPlaceCurrentBoard(int row, int col, int number) {
-    String numStr = number.toString();
-
-    // بررسی سطر
-    for (int c = 0; c < 9; c++) {
-      if (c == col) continue;
-      if (cells[row][c].value != 0 &&
-          cells[row][c].value.toString() == numStr) {
-        return false;
-      }
-    }
-
-    // بررسی ستون
-    for (int r = 0; r < 9; r++) {
-      if (r == row) continue;
-      if (cells[r][col].value != 0 &&
-          cells[r][col].value.toString() == numStr) {
-        return false;
-      }
-    }
-
-    // بررسی بلوک 3x3
-    int startRow = (row ~/ 3) * 3;
-    int startCol = (col ~/ 3) * 3;
-    for (int r = startRow; r < startRow + 3; r++) {
-      for (int c = startCol; c < startCol + 3; c++) {
-        if (r == row && c == col) continue;
-        if (cells[r][c].value != 0 && cells[r][c].value.toString() == numStr) {
-          return false;
-        }
-      }
-    }
-    return true;
+  /// تصویری از مقادیر فعلی برد به صورت ماتریس اعداد صحیح (0 = خالی).
+  List<List<int>> _currentBoard() {
+    return [
+      for (int r = 0; r < 9; r++)
+        [for (int c = 0; c < 9; c++) cells[r][c].value],
+    ];
   }
 
   List<int> allowedNumbers(int row, int col) {
     if (_solution == null) return [];
     if (cells[row][col].isFixed) return [cells[row][col].value];
-    List<int> result = [];
+    final board = _currentBoard();
+    final result = <int>[];
     for (int n = 1; n <= 9; n++) {
-      if (_canPlaceCurrentBoard(row, col, n)) result.add(n);
+      if (_canPlace(board, row, col, n)) result.add(n);
     }
     return result;
   }
@@ -515,18 +491,13 @@ class HomeController extends GetxController {
       int c = idx % 9;
       int backup = puzzle[r][c];
       puzzle[r][c] = 0;
-      if (!_hasUniqueSolutionFast(puzzle)) {
+      if (!hasUniqueSolution(puzzle)) {
         puzzle[r][c] = backup;
       } else {
         filledCells--;
       }
     }
     return puzzle;
-  }
-
-  bool _hasUniqueSolutionFast(List<List<int>> grid) {
-    final clone = grid.map((row) => [...row]).toList();
-    return !_solveSudokuWithLimit(clone, limit: 2);
   }
 
   bool _solveSudokuWithLimit(List<List<int>> grid, {int limit = 2}) {
@@ -561,53 +532,10 @@ class HomeController extends GetxController {
     return solutions >= limit;
   }
 
+  /// بررسی می‌کند که پازل فقط یک راه‌حل یکتا داشته باشد.
   bool hasUniqueSolution(List<List<int>> puzzle) {
-    int solutionCount = 0;
-
-    bool canPlaceHelper(List<List<int>> board, int row, int col, int number) {
-      for (int c = 0; c < 9; c++) {
-        if (board[row][c] == number) return false;
-      }
-      for (int r = 0; r < 9; r++) {
-        if (board[r][col] == number) return false;
-      }
-      int startRow = (row ~/ 3) * 3;
-      int startCol = (col ~/ 3) * 3;
-      for (int r = startRow; r < startRow + 3; r++) {
-        for (int c = startCol; c < startCol + 3; c++) {
-          if (board[r][c] == number) return false;
-        }
-      }
-      return true;
-    }
-
-    bool solve(List<List<int>> board) {
-      for (int row = 0; row < 9; row++) {
-        for (int col = 0; col < 9; col++) {
-          if (board[row][col] == 0) {
-            List<int> numbers = List.generate(9, (i) => i + 1)..shuffle();
-            for (int num in numbers) {
-              if (canPlaceHelper(board, row, col, num)) {
-                board[row][col] = num;
-                if (solve(board)) {
-                  if (solutionCount > 1) return true;
-                }
-                board[row][col] = 0;
-              }
-            }
-            return false;
-          }
-        }
-      }
-      solutionCount++;
-      return solutionCount > 1;
-    }
-
-    List<List<int>> testBoard = puzzle
-        .map((row) => row.map((cell) => cell).toList())
-        .toList();
-    solve(testBoard);
-    return solutionCount == 1;
+    final clone = puzzle.map((row) => [...row]).toList();
+    return !_solveSudokuWithLimit(clone, limit: 2);
   }
 
   // ==================== توابع کمکی UI ====================
