@@ -1,3 +1,5 @@
+import 'dart:math' show pi, sin;
+
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:sodocu/abute/abute_page.dart';
@@ -360,32 +362,33 @@ class _SudokuBoardState extends State<SudokuBoard> {
                   // خانه‌های ثابت (پازل اولیه)
                   if (ctrl.puzzle != null && ctrl.puzzle![row][col] != 0) {
                     return Obx(
-                      () => Container(
-                        decoration: BoxDecoration(
-                          border: Border.all(
-                            color:
-                                ctrl.selectedNumber.value ==
-                                    int.tryParse(ctrl.getCellValue(row, col))
-                                ? Colors.orange
-                                : Colors.grey.shade500,
-                            width:
-                                ctrl.selectedNumber.value ==
-                                    int.tryParse(ctrl.getCellValue(row, col))
-                                ? 3
-                                : 0.5,
-                          ),
-                        ),
-                        child: Center(
-                          child: Text(
-                            ctrl.getCellValue(row, col),
-                            style: TextStyle(
+                      () {
+                        final cellValue = int.parse(ctrl.getCellValue(row, col));
+                        final highlight =
+                            ctrl.selectedNumber.value == cellValue;
+                        return _AnimatedCellContainer(
+                          row: row,
+                          col: col,
+                          ctrl: ctrl,
+                          borderColor: highlight
+                              ? Colors.orange
+                              : Colors.grey.shade500,
+                          borderWidth: highlight ? 3 : 0.5,
+                          child: Center(
+                            child: _AnimatedBoardNumber(
+                              number: cellValue,
+                              celebratingNumber: ctrl.celebratingNumber.value,
+                              celebrateRegion:
+                                  ctrl.isCellCelebrating(row, col),
+                              regionCelebrationToken:
+                                  ctrl.celebrationToken.value,
                               fontSize: 28,
                               fontWeight: FontWeight.w500,
                               color: ctrl.getCellTextColor(row, col),
                             ),
                           ),
-                        ),
-                      ),
+                        );
+                      },
                     );
                   }
 
@@ -416,25 +419,30 @@ class _SudokuBoardState extends State<SudokuBoard> {
                       final isSelectedCell =
                           ctrl.selectedRow == row && ctrl.selectedCol == col;
 
-                      return Container(
-                        decoration: BoxDecoration(
-                          border: Border.all(
-                            color: ctrl.selectedNumber.value == value
-                                ? Colors.orange
-                                : Colors.grey.shade300,
-                            width: ctrl.selectedNumber.value == value ? 3 : 1,
-                          ),
-                          color: isSelectedCell ? Colors.yellow.shade50 : null,
-                        ),
+                      return _AnimatedCellContainer(
+                        row: row,
+                        col: col,
+                        ctrl: ctrl,
+                        borderColor: ctrl.selectedNumber.value == value
+                            ? Colors.orange
+                            : Colors.grey.shade300,
+                        borderWidth: ctrl.selectedNumber.value == value ? 1.5 : 1,
+                        backgroundColor: isSelectedCell
+                            ? Colors.amber.withValues(alpha: 0.12)
+                            : null,
                         child: value != 0
                             ? Center(
-                                child: Text(
-                                  value.toString(),
-                                  style: TextStyle(
-                                    fontSize: 30,
-                                    fontWeight: FontWeight.w700,
-                                    color: ctrl.getCellTextColor(row, col),
-                                  ),
+                                child: _AnimatedBoardNumber(
+                                  number: value,
+                                  celebratingNumber:
+                                      ctrl.celebratingNumber.value,
+                                  celebrateRegion:
+                                      ctrl.isCellCelebrating(row, col),
+                                  regionCelebrationToken:
+                                      ctrl.celebrationToken.value,
+                                  fontSize: 30,
+                                  fontWeight: FontWeight.w700,
+                                  color: ctrl.getCellTextColor(row, col),
                                 ),
                               )
                             : hasNotes
@@ -667,6 +675,235 @@ class _SudokuBoardState extends State<SudokuBoard> {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _AnimatedBoardNumber extends StatefulWidget {
+  const _AnimatedBoardNumber({
+    required this.number,
+    required this.celebratingNumber,
+    required this.celebrateRegion,
+    required this.regionCelebrationToken,
+    required this.fontSize,
+    required this.fontWeight,
+    required this.color,
+  });
+
+  final int number;
+  final int? celebratingNumber;
+  final bool celebrateRegion;
+  final int regionCelebrationToken;
+  final double fontSize;
+  final FontWeight fontWeight;
+  final Color color;
+
+  @override
+  State<_AnimatedBoardNumber> createState() => _AnimatedBoardNumberState();
+}
+
+class _AnimatedBoardNumberState extends State<_AnimatedBoardNumber>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _scale;
+  int _lastRegionToken = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 850),
+    );
+    _scale = TweenSequence<double>([
+      TweenSequenceItem(
+        tween: Tween<double>(begin: 1, end: 1.45),
+        weight: 35,
+      ),
+      TweenSequenceItem(
+        tween: Tween<double>(begin: 1.45, end: 1),
+        weight: 65,
+      ),
+    ]).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
+  }
+
+  void _runCelebration() {
+    _controller.forward(from: 0);
+  }
+
+  @override
+  void didUpdateWidget(_AnimatedBoardNumber oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.celebratingNumber == widget.number &&
+        oldWidget.celebratingNumber != widget.number) {
+      _runCelebration();
+    }
+    if (widget.celebrateRegion &&
+        widget.regionCelebrationToken != _lastRegionToken) {
+      _lastRegionToken = widget.regionCelebrationToken;
+      _runCelebration();
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        final progress = _controller.value;
+        final shake =
+            sin(progress * pi * 12) * 5 * (1 - progress.clamp(0.0, 1.0));
+        final isAnimating = _controller.isAnimating;
+
+        return Transform.translate(
+          offset: Offset(shake, 0),
+          child: Transform.scale(
+            scale: _scale.value,
+            child: Text(
+              widget.number.toString(),
+              style: TextStyle(
+                fontSize: widget.fontSize,
+                fontWeight: widget.fontWeight,
+                color: isAnimating
+                    ? const Color(0xFFFFD700)
+                    : widget.color,
+                shadows: isAnimating
+                    ? [
+                        Shadow(
+                          color: Colors.amber.shade700.withValues(alpha: 0.6),
+                          blurRadius: 8,
+                        ),
+                      ]
+                    : null,
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _AnimatedCellContainer extends StatefulWidget {
+  const _AnimatedCellContainer({
+    required this.row,
+    required this.col,
+    required this.ctrl,
+    required this.borderColor,
+    required this.borderWidth,
+    this.backgroundColor,
+    required this.child,
+  });
+
+  final int row;
+  final int col;
+  final HomeController ctrl;
+  final Color borderColor;
+  final double borderWidth;
+  final Color? backgroundColor;
+  final Widget? child;
+
+  @override
+  State<_AnimatedCellContainer> createState() => _AnimatedCellContainerState();
+}
+
+class _AnimatedCellContainerState extends State<_AnimatedCellContainer>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  int _lastRegionToken = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    );
+  }
+
+  Color _persistentBackground() {
+    final completed = widget.ctrl.getCompletedUnitBackground(
+      widget.row,
+      widget.col,
+    );
+    final base = widget.backgroundColor;
+    if (completed == null) {
+      return base ?? Colors.transparent;
+    }
+    if (base == null) return completed;
+    return Color.lerp(base, completed, 0.75) ?? completed;
+  }
+
+  Color _peakBackground() {
+    return widget.ctrl.getCompletedUnitPeakBackground(
+      widget.row,
+      widget.col,
+    );
+  }
+
+  Color _celebrationColor(double progress) {
+    final persistent = _persistentBackground();
+    final peak = _peakBackground();
+    final pulse = sin(progress * pi);
+    return Color.lerp(persistent, peak, pulse * 0.95) ?? persistent;
+  }
+
+  @override
+  void didUpdateWidget(_AnimatedCellContainer oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.ctrl.isCellCelebrating(widget.row, widget.col) &&
+        widget.ctrl.celebrationToken.value != _lastRegionToken) {
+      _lastRegionToken = widget.ctrl.celebrationToken.value;
+      _controller.forward(from: 0);
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        final progress = _controller.value;
+        final isCelebrating = widget.ctrl.isCellCelebrating(
+          widget.row,
+          widget.col,
+        );
+        final bgColor = _controller.isAnimating || isCelebrating
+            ? _celebrationColor(progress)
+            : _persistentBackground();
+
+        return Container(
+          decoration: BoxDecoration(
+            border: Border.all(
+              color: widget.borderColor,
+              width: widget.borderWidth,
+            ),
+            color: bgColor == Colors.transparent ? null : bgColor,
+            boxShadow: _controller.isAnimating
+                ? [
+                    BoxShadow(
+                      color: Colors.amber.withValues(alpha: 0.35 * (1 - progress)),
+                      blurRadius: 10,
+                      spreadRadius: 1,
+                    ),
+                  ]
+                : null,
+          ),
+          child: widget.child,
+        );
+      },
     );
   }
 }

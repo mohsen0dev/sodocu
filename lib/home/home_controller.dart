@@ -45,6 +45,19 @@ class HomeController extends GetxController {
   /// عدد انتخاب شده توسط کاربر (0 = حالت پاک کردن، 1-9 = اعداد)
   var selectedNumber = 0.obs;
 
+  /// عددی که در حال نمایش افکت تکمیل ۹تایی است
+  RxnInt celebratingNumber = RxnInt();
+
+  /// واحدهای در حال جشن (row-0..8, col-0..8, box-0..8)
+  RxSet<String> celebratingUnits = RxSet<String>();
+
+  /// برای راه‌اندازی مجدد انیمیشن واحدها
+  var celebrationToken = 0.obs;
+
+  final Set<int> _completedRows = {};
+  final Set<int> _completedCols = {};
+  final Set<int> _completedBoxes = {};
+
   int? selectedRow;
   int? selectedCol;
 
@@ -119,6 +132,8 @@ class HomeController extends GetxController {
     _redoStack.add(_copyCells());
     _restoreCells(_undoStack.removeLast());
     _updateHistoryButtons();
+    _syncCompletedUnits();
+    celebratingUnits.clear();
     _showMessage('مرحله قبل بازگردانی شد', Colors.orange);
   }
 
@@ -127,6 +142,8 @@ class HomeController extends GetxController {
     _undoStack.add(_copyCells());
     _restoreCells(_redoStack.removeLast());
     _updateHistoryButtons();
+    _syncCompletedUnits();
+    celebratingUnits.clear();
     _showMessage('مرحله بعد بازیابی شد', Colors.orange);
   }
 
@@ -166,7 +183,8 @@ class HomeController extends GetxController {
     _saveToHistory();
     cells[r][c].value = number;
     cells[r][c].notes.clear();
-    update();
+    cells.refresh();
+    _afterNumberPlaced(r, c, number);
   }
 
   void toggleNote(int r, int c, int number) {
@@ -198,6 +216,7 @@ class HomeController extends GetxController {
         cells[row][col].notes.clear();
         numberUsage.refresh();
         cells.refresh();
+        _syncCompletedUnits();
         _showMessage('عدد حذف شد', Colors.red, duration: 1);
       }
       return;
@@ -215,6 +234,7 @@ class HomeController extends GetxController {
       cells[row][col].notes.clear();
       numberUsage.refresh();
       cells.refresh();
+      _syncCompletedUnits();
       return;
     }
 
@@ -244,6 +264,7 @@ class HomeController extends GetxController {
     numberUsage[newNumber] = numberUsage[newNumber]! + 1;
     numberUsage.refresh();
     cells.refresh();
+    _afterNumberPlaced(row, col, newNumber);
 
     // بررسی برنده شدن
     if (isSolved()) {
@@ -266,6 +287,7 @@ class HomeController extends GetxController {
       cells[row][col].notes.clear();
       numberUsage.refresh();
       cells.refresh();
+      _syncCompletedUnits();
       _showMessage('عدد حذف شد', Colors.red, duration: 1);
     }
   }
@@ -376,6 +398,7 @@ class HomeController extends GetxController {
     currentHelperUses.value++;
     cells.refresh();
     numberUsage.refresh();
+    _afterNumberPlaced(row, col, correctNumber);
 
     _showMessage('راهنما: خانه با عدد $correctNumber پر شد', Colors.blue);
 
@@ -419,6 +442,11 @@ class HomeController extends GetxController {
       puzzle = generatedPuzzle;
       currentHelperUses.value = 0;
       selectedNumber.value = 0;
+      celebratingNumber.value = null;
+      celebratingUnits.clear();
+      _completedRows.clear();
+      _completedCols.clear();
+      _completedBoxes.clear();
 
       for (var i = 1; i <= 9; i++) {
         numberUsage[i] = 0;
@@ -442,6 +470,7 @@ class HomeController extends GetxController {
 
       cells.refresh();
       numberUsage.refresh();
+      _syncCompletedUnits();
       _showMessage('بازی جدید شروع شد!', Colors.green);
     } catch (e) {
       showError('خطا در شروع بازی: $e');
@@ -620,18 +649,168 @@ class HomeController extends GetxController {
   }
 
   Color getCellTextColor(int row, int col) {
+    final value = cells[row][col].value;
+    if (value == 0) {
+      return Colors.transparent;
+    }
+    if (_isNumberFullyPlaced(value)) {
+      return Colors.grey.shade800;
+    }
     if (cells[row][col].isFixed) {
       return Colors.grey.shade400;
-    }
-    if (cells[row][col].value == 0) {
-      return Colors.transparent;
     }
     if (!isActive.value) {
       return Colors.blue;
     }
-    return isCorrect(row, col, cells[row][col].value)
-        ? Colors.blue
-        : Colors.red;
+    return isCorrect(row, col, value) ? Colors.blue : Colors.red;
+  }
+
+  bool _isNumberFullyPlaced(int number) => _countNumberOnBoard(number) >= 9;
+
+  int _countNumberOnBoard(int number) {
+    int count = 0;
+    for (final row in cells) {
+      for (final cell in row) {
+        if (cell.value == number) count++;
+      }
+    }
+    return count;
+  }
+
+  void _onNumberPlaced(int number) {
+    if (number < 1 || number > 9) return;
+    if (_countNumberOnBoard(number) != 9) return;
+    celebratingNumber.value = number;
+    Future.delayed(const Duration(milliseconds: 850), () {
+      if (celebratingNumber.value == number) {
+        celebratingNumber.value = null;
+      }
+    });
+  }
+
+  static int boxIndex(int row, int col) => (row ~/ 3) * 3 + (col ~/ 3);
+
+  bool isCellCelebrating(int row, int col) {
+    return celebratingUnits.contains('row-$row') ||
+        celebratingUnits.contains('col-$col') ||
+        celebratingUnits.contains('box-${boxIndex(row, col)}');
+  }
+
+  Color? getCompletedUnitBackground(int row, int col) {
+    final rowDone = _completedRows.contains(row);
+    final colDone = _completedCols.contains(col);
+    final boxDone = _completedBoxes.contains(boxIndex(row, col));
+
+    if (!rowDone && !colDone && !boxDone) return null;
+
+    if (rowDone && colDone) {
+      return Colors.purple.withValues(alpha: 0.22);
+    }
+    if (rowDone) {
+      return Colors.lightBlue.withValues(alpha: 0.18);
+    }
+    if (colDone) {
+      return Colors.deepPurple.withValues(alpha: 0.18);
+    }
+    return Colors.teal.withValues(alpha: 0.18);
+  }
+
+  Color getCompletedUnitPeakBackground(int row, int col) {
+    final rowDone = _completedRows.contains(row);
+    final colDone = _completedCols.contains(col);
+    final boxDone = _completedBoxes.contains(boxIndex(row, col));
+
+    if (rowDone && colDone) {
+      return Colors.purple.withValues(alpha: 0.42);
+    }
+    if (rowDone) {
+      return Colors.lightBlue.withValues(alpha: 0.38);
+    }
+    if (colDone) {
+      return Colors.deepPurple.withValues(alpha: 0.38);
+    }
+    if (boxDone) {
+      return Colors.teal.withValues(alpha: 0.38);
+    }
+    return Colors.amber.withValues(alpha: 0.3);
+  }
+
+  bool _isUnitValuesComplete(List<int> values) {
+    if (values.length != 9 || values.any((v) => v == 0)) return false;
+    return values.toSet().length == 9;
+  }
+
+  bool isRowComplete(int row) {
+    return _isUnitValuesComplete([
+      for (int c = 0; c < 9; c++) cells[row][c].value,
+    ]);
+  }
+
+  bool isColComplete(int col) {
+    return _isUnitValuesComplete([
+      for (int r = 0; r < 9; r++) cells[r][col].value,
+    ]);
+  }
+
+  bool isBoxComplete(int box) {
+    final startRow = (box ~/ 3) * 3;
+    final startCol = (box % 3) * 3;
+    final values = <int>[];
+    for (int r = startRow; r < startRow + 3; r++) {
+      for (int c = startCol; c < startCol + 3; c++) {
+        values.add(cells[r][c].value);
+      }
+    }
+    return _isUnitValuesComplete(values);
+  }
+
+  void _syncCompletedUnits() {
+    _completedRows.clear();
+    _completedCols.clear();
+    _completedBoxes.clear();
+    for (int i = 0; i < 9; i++) {
+      if (isRowComplete(i)) _completedRows.add(i);
+      if (isColComplete(i)) _completedCols.add(i);
+      if (isBoxComplete(i)) _completedBoxes.add(i);
+    }
+    cells.refresh();
+  }
+
+  void _afterNumberPlaced(int row, int col, int number) {
+    _onNumberPlaced(number);
+    _checkAndCelebrateUnits(row, col);
+  }
+
+  void _checkAndCelebrateUnits(int row, int col) {
+    final newUnits = <String>[];
+
+    if (isRowComplete(row) && _completedRows.add(row)) {
+      newUnits.add('row-$row');
+    } else if (!isRowComplete(row)) {
+      _completedRows.remove(row);
+    }
+
+    if (isColComplete(col) && _completedCols.add(col)) {
+      newUnits.add('col-$col');
+    } else if (!isColComplete(col)) {
+      _completedCols.remove(col);
+    }
+
+    final box = boxIndex(row, col);
+    if (isBoxComplete(box) && _completedBoxes.add(box)) {
+      newUnits.add('box-$box');
+    } else if (!isBoxComplete(box)) {
+      _completedBoxes.remove(box);
+    }
+
+    if (newUnits.isEmpty) return;
+
+    celebratingUnits.addAll(newUnits);
+    celebrationToken.value++;
+    Future.delayed(const Duration(milliseconds: 950), () {
+      celebratingUnits.removeAll(newUnits);
+      cells.refresh();
+    });
   }
 
   // ==================== پیام‌ها ====================
