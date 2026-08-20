@@ -132,6 +132,50 @@ void main() {
       expect(controller.cells[0][0].notes, isEmpty);
     });
 
+    test('setCellNote از عدد انتخاب‌شده برای مدیریت کاندیدا استفاده می‌کند', () {
+      controller.selectedNumber.value = 7;
+
+      controller.setCellNote(0, 0);
+      expect(controller.cells[0][0].notes, contains(7));
+
+      controller.setCellNote(0, 0);
+      expect(controller.cells[0][0].notes, isEmpty);
+    });
+
+    test('حذف همه یادداشت‌های یک خانه تاریخچه را ثبت می‌کند', () {
+      controller.toggleNote(0, 0, 5);
+      controller.toggleNote(0, 0, 7);
+
+      controller.clearNotes(0, 0);
+
+      expect(controller.cells[0][0].notes, isEmpty);
+      expect(controller.canUndo.value, isTrue);
+    });
+
+    test('پاک‌سازی خودکار فقط کاندیداهای نامعتبر را حذف می‌کند', () {
+      controller.cells[0][0].value = 5;
+      controller.cells[0][1].notes.addAll({5, 6});
+
+      final removed = controller.removeInvalidNotes();
+
+      expect(removed, 1);
+      expect(controller.cells[0][1].notes, contains(6));
+      expect(controller.cells[0][1].notes, isNot(contains(5)));
+    });
+
+    test('با ثبت عدد اصلی، همان کاندیدا از خانه‌های مرتبط حذف می‌شود', () {
+      controller.toggleNote(0, 1, 5);
+      controller.toggleNote(1, 0, 5);
+      controller.toggleNote(1, 1, 5);
+
+      controller.placeMainNumber(0, 0, 5);
+
+      expect(controller.cells[0][1].notes, isEmpty);
+      expect(controller.cells[1][0].notes, isEmpty);
+      expect(controller.cells[1][1].notes, isEmpty);
+      expect(controller.numberUsage[5], 1);
+    });
+
     test('placeMainNumber عدد را در خانهٔ خالی قرار می‌دهد و تاریخچه ثبت می‌شود', () {
       controller.placeMainNumber(0, 0, 7);
 

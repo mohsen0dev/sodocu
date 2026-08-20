@@ -25,6 +25,13 @@ class _SudokuBoardState extends State<SudokuBoard> {
   }
 
   void _updateCell(int row, int col, int value) {
+    if (ctrl.noteMode.value) {
+      ctrl.toggleNote(row, col, value);
+      // در حالت یادداشت، انتخابگر باز می‌ماند تا چند کاندیدا پشت‌سرهم ثبت شود.
+      setState(() {});
+      return;
+    }
+
     ctrl.placeMainNumber(row, col, value);
     setState(() {
       _showPicker = false;
@@ -184,7 +191,8 @@ class _SudokuBoardState extends State<SudokuBoard> {
                   ),
                 ),
               ),
-              if (_showPicker && _pickerPosition != null) _numberPickerWidget(),
+              if (_showPicker && _pickerPosition != null)
+                Obx(() => _numberPickerWidget()),
             ],
           ),
         );
@@ -361,47 +369,48 @@ class _SudokuBoardState extends State<SudokuBoard> {
 
                   // خانه‌های ثابت (پازل اولیه)
                   if (ctrl.puzzle != null && ctrl.puzzle![row][col] != 0) {
-                    return Obx(
-                      () {
-                        final cellValue = int.parse(ctrl.getCellValue(row, col));
-                        final highlight =
-                            ctrl.selectedNumber.value == cellValue;
-                        return _AnimatedCellContainer(
-                          row: row,
-                          col: col,
-                          ctrl: ctrl,
-                          borderColor: highlight
-                              ? Colors.orange
-                              : Colors.grey.shade500,
-                          borderWidth: highlight ? 3 : 0.5,
-                          child: Center(
-                            child: _AnimatedBoardNumber(
-                              number: cellValue,
-                              celebratingNumber: ctrl.celebratingNumber.value,
-                              celebrateRegion:
-                                  ctrl.isCellCelebrating(row, col),
-                              regionCelebrationToken:
-                                  ctrl.celebrationToken.value,
-                              fontSize: 28,
-                              fontWeight: FontWeight.w500,
-                              color: ctrl.getCellTextColor(row, col),
-                            ),
+                    return Obx(() {
+                      final cellValue = int.parse(ctrl.getCellValue(row, col));
+                      final highlight = ctrl.selectedNumber.value == cellValue;
+                      return _AnimatedCellContainer(
+                        row: row,
+                        col: col,
+                        ctrl: ctrl,
+                        borderColor: highlight
+                            ? Colors.orange
+                            : Colors.grey.shade500,
+                        borderWidth: highlight ? 3 : 0.5,
+                        child: Center(
+                          child: _AnimatedBoardNumber(
+                            number: cellValue,
+                            celebratingNumber: ctrl.celebratingNumber.value,
+                            celebrateRegion: ctrl.isCellCelebrating(row, col),
+                            regionCelebrationToken: ctrl.celebrationToken.value,
+                            fontSize: 28,
+                            fontWeight: FontWeight.w500,
+                            color: ctrl.getCellTextColor(row, col),
                           ),
-                        );
-                      },
-                    );
+                        ),
+                      );
+                    });
                   }
 
                   // خانه‌های قابل ویرایش
                   return GestureDetector(
-                    onTapDown: (details) {
+                    onTapUp: (details) {
+                      ctrl.selectCell(row, col);
                       if (ctrl.isShow.value) {
-                        // حالت انتخاب عدد از پد اعداد
-                        ctrl.setCellValue(row, col);
-                        // اگر عدد به حداکثر استفاده رسید، انتخاب را بردار
-                        if (ctrl.selectedNumber.value != 0 &&
-                            ctrl.numberUsage[ctrl.selectedNumber.value] == 9) {
-                          ctrl.selectedNumber.value = 0;
+                        // حالت ورود مستقیم؛ در حالت یادداشت فقط کاندیدا تغییر می‌کند.
+                        if (ctrl.noteMode.value) {
+                          ctrl.setCellNote(row, col);
+                        } else {
+                          ctrl.setCellValue(row, col);
+                          // اگر عدد به حداکثر استفاده رسید، انتخاب را بردار
+                          if (ctrl.selectedNumber.value != 0 &&
+                              ctrl.numberUsage[ctrl.selectedNumber.value] ==
+                                  9) {
+                            ctrl.selectedNumber.value = 0;
+                          }
                         }
                       } else {
                         // حالت پیکر
@@ -426,18 +435,25 @@ class _SudokuBoardState extends State<SudokuBoard> {
                         borderColor: ctrl.selectedNumber.value == value
                             ? Colors.orange
                             : Colors.grey.shade300,
-                        borderWidth: ctrl.selectedNumber.value == value ? 1.5 : 1,
+                        borderWidth: ctrl.selectedNumber.value == value
+                            ? 1.5
+                            : 1,
                         backgroundColor: isSelectedCell
                             ? Colors.amber.withValues(alpha: 0.12)
                             : null,
-                        child: value != 0
-                            ? Center(
+                        child: Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            if (value != 0)
+                              Center(
                                 child: _AnimatedBoardNumber(
                                   number: value,
                                   celebratingNumber:
                                       ctrl.celebratingNumber.value,
-                                  celebrateRegion:
-                                      ctrl.isCellCelebrating(row, col),
+                                  celebrateRegion: ctrl.isCellCelebrating(
+                                    row,
+                                    col,
+                                  ),
                                   regionCelebrationToken:
                                       ctrl.celebrationToken.value,
                                   fontSize: 30,
@@ -445,9 +461,29 @@ class _SudokuBoardState extends State<SudokuBoard> {
                                   color: ctrl.getCellTextColor(row, col),
                                 ),
                               )
-                            : hasNotes
-                            ? _buildNotesGrid(ctrl.cells[row][col].notes)
-                            : null,
+                            else if (hasNotes)
+                              _buildNotesGrid(ctrl.cells[row][col].notes),
+                            if (hasNotes)
+                              Positioned(
+                                top: 0,
+                                right: 0,
+                                child: Tooltip(
+                                  message: 'حذف همه یادداشت‌ها',
+                                  child: InkWell(
+                                    onTap: () => ctrl.clearNotes(row, col),
+                                    child: const Padding(
+                                      padding: EdgeInsets.all(1),
+                                      child: Icon(
+                                        Icons.clear_all,
+                                        size: 13,
+                                        color: Colors.redAccent,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
                       );
                     }),
                   );
@@ -569,7 +605,7 @@ class _SudokuBoardState extends State<SudokuBoard> {
                 border: Border.all(color: Colors.grey.shade300),
               ),
               child: SwitchListTile(
-                title: const Text('نمایش یادداشت'),
+                title: const Text('حالت یادداشت'),
                 value: ctrl.noteMode.value,
                 onChanged: (v) => ctrl.toggleNoteMode(),
               ),
@@ -584,6 +620,7 @@ class _SudokuBoardState extends State<SudokuBoard> {
     final row = _selectedRow!;
     final col = _selectedCol!;
     final allowed = ctrl.allowedNumbers(row, col);
+    final notes = ctrl.cells[row][col].notes;
     final currentValue = ctrl.cells[row][col].value;
 
     return Positioned(
@@ -602,6 +639,17 @@ class _SudokuBoardState extends State<SudokuBoard> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              if (ctrl.noteMode.value)
+                const Padding(
+                  padding: EdgeInsets.only(bottom: 8),
+                  child: Text(
+                    'حالت یادداشت',
+                    style: TextStyle(
+                      color: Colors.blue,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
               GridView.builder(
                 physics: const NeverScrollableScrollPhysics(),
                 shrinkWrap: true,
@@ -614,7 +662,11 @@ class _SudokuBoardState extends State<SudokuBoard> {
                 itemCount: 9,
                 itemBuilder: (context, idx) {
                   final number = idx + 1;
-                  final enabled = allowed.contains(number);
+                  final isNote = notes.contains(number);
+                  final enabled =
+                      currentValue == 0 &&
+                      (allowed.contains(number) ||
+                          (ctrl.noteMode.value && isNote));
 
                   return GestureDetector(
                     onTap: enabled
@@ -636,7 +688,11 @@ class _SudokuBoardState extends State<SudokuBoard> {
                           style: TextStyle(
                             fontSize: 20,
                             fontWeight: FontWeight.bold,
-                            color: enabled ? Colors.blue : Colors.grey.shade400,
+                            color: !enabled
+                                ? Colors.grey.shade400
+                                : ctrl.noteMode.value && isNote
+                                ? Colors.orange
+                                : Colors.blue,
                           ),
                         ),
                       ),
@@ -666,6 +722,36 @@ class _SudokuBoardState extends State<SudokuBoard> {
                         Icon(Icons.delete_outline, color: Colors.red, size: 18),
                         SizedBox(width: 4),
                         Text('پاک کردن', style: TextStyle(color: Colors.red)),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+              if (notes.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                const Divider(),
+                GestureDetector(
+                  onTap: () {
+                    ctrl.clearNotes(row, col);
+                    setState(() {
+                      _showPicker = false;
+                    });
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.clear_all, color: Colors.orange, size: 18),
+                        SizedBox(width: 4),
+                        Text(
+                          'حذف یادداشت‌ها',
+                          style: TextStyle(color: Colors.orange),
+                        ),
                       ],
                     ),
                   ),
@@ -716,14 +802,8 @@ class _AnimatedBoardNumberState extends State<_AnimatedBoardNumber>
       duration: const Duration(milliseconds: 850),
     );
     _scale = TweenSequence<double>([
-      TweenSequenceItem(
-        tween: Tween<double>(begin: 1, end: 1.45),
-        weight: 35,
-      ),
-      TweenSequenceItem(
-        tween: Tween<double>(begin: 1.45, end: 1),
-        weight: 65,
-      ),
+      TweenSequenceItem(tween: Tween<double>(begin: 1, end: 1.45), weight: 35),
+      TweenSequenceItem(tween: Tween<double>(begin: 1.45, end: 1), weight: 65),
     ]).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
   }
 
@@ -770,9 +850,7 @@ class _AnimatedBoardNumberState extends State<_AnimatedBoardNumber>
               style: TextStyle(
                 fontSize: widget.fontSize,
                 fontWeight: widget.fontWeight,
-                color: isAnimating
-                    ? const Color(0xFFFFD700)
-                    : widget.color,
+                color: isAnimating ? const Color(0xFFFFD700) : widget.color,
                 shadows: isAnimating
                     ? [
                         Shadow(
@@ -841,10 +919,7 @@ class _AnimatedCellContainerState extends State<_AnimatedCellContainer>
   }
 
   Color _peakBackground() {
-    return widget.ctrl.getCompletedUnitPeakBackground(
-      widget.row,
-      widget.col,
-    );
+    return widget.ctrl.getCompletedUnitPeakBackground(widget.row, widget.col);
   }
 
   Color _celebrationColor(double progress) {
@@ -894,7 +969,9 @@ class _AnimatedCellContainerState extends State<_AnimatedCellContainer>
             boxShadow: _controller.isAnimating
                 ? [
                     BoxShadow(
-                      color: Colors.amber.withValues(alpha: 0.35 * (1 - progress)),
+                      color: Colors.amber.withValues(
+                        alpha: 0.35 * (1 - progress),
+                      ),
                       blurRadius: 10,
                       spreadRadius: 1,
                     ),

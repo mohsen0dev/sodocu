@@ -180,22 +180,123 @@ class HomeController extends GetxController {
       showError('این خانه قابل تغییر نیست!');
       return;
     }
+    if (number < 1 || number > 9) return;
+
+    final previousValue = cells[r][c].value;
+    if (previousValue == number) return;
+    if (!_canPlace(_currentBoard(), r, c, number)) {
+      showError('عدد $number در این خانه قابل قرار نیست!');
+      return;
+    }
+
     _saveToHistory();
+    if (previousValue != 0) {
+      numberUsage[previousValue] =
+          (numberUsage[previousValue]! - 1).clamp(0, 9);
+    }
     cells[r][c].value = number;
     cells[r][c].notes.clear();
+    numberUsage[number] = numberUsage[number]! + 1;
+    _removeNumberFromRelatedNotes(r, c, number);
+    removeInvalidNotes();
+    numberUsage.refresh();
     cells.refresh();
     _afterNumberPlaced(r, c, number);
+
+    if (isSolved()) {
+      _showSuccessDialog();
+    }
   }
 
+  /// افزودن یا حذف یک کاندیدا از خانهٔ انتخاب‌شده.
   void toggleNote(int r, int c, int number) {
     if (cells[r][c].isFixed) return;
+    if (cells[r][c].value != 0) {
+      showError('ابتدا عدد اصلی خانه را پاک کنید.');
+      return;
+    }
+    if (number < 1 || number > 9) return;
+
+    final hasNote = cells[r][c].notes.contains(number);
+    if (!hasNote && !_canPlace(_currentBoard(), r, c, number)) {
+      showError('عدد $number کاندیدای معتبری برای این خانه نیست.');
+      return;
+    }
+
     _saveToHistory();
-    if (cells[r][c].notes.contains(number)) {
+    if (hasNote) {
       cells[r][c].notes.remove(number);
     } else {
       cells[r][c].notes.add(number);
     }
-    update();
+    cells.refresh();
+  }
+
+  /// ثبت کاندیدا با عدد انتخاب‌شده در نوار اعداد.
+  void setCellNote(int row, int col) {
+    final number = selectedNumber.value;
+    if (number == 0) {
+      showError('برای یادداشت، ابتدا یک عدد از ۱ تا ۹ انتخاب کنید.');
+      return;
+    }
+    toggleNote(row, col, number);
+  }
+
+  /// تمام یادداشت‌های یک خانه را حذف می‌کند.
+  void clearNotes(int row, int col) {
+    if (cells[row][col].notes.isEmpty) return;
+
+    _saveToHistory();
+    cells[row][col].notes.clear();
+    cells.refresh();
+  }
+
+  /// کاندیداهایی را که با وضعیت فعلی جدول ناسازگار شده‌اند پاک می‌کند.
+  ///
+  /// خروجی، تعداد یادداشت‌های حذف‌شده است تا در صورت نیاز UI بتواند پیام نشان دهد.
+  int removeInvalidNotes() {
+    var removedCount = 0;
+    final board = _currentBoard();
+
+    for (int row = 0; row < 9; row++) {
+      for (int col = 0; col < 9; col++) {
+        final cell = cells[row][col];
+        if (cell.notes.isEmpty) continue;
+
+        if (cell.isFixed || cell.value != 0) {
+          removedCount += cell.notes.length;
+          cell.notes.clear();
+          continue;
+        }
+
+        cell.notes.removeWhere((number) {
+          final isValid = _canPlace(board, row, col, number);
+          if (!isValid) removedCount++;
+          return !isValid;
+        });
+      }
+    }
+
+    if (removedCount > 0) cells.refresh();
+    return removedCount;
+  }
+
+  /// کاندیدای واردشده را از خانه‌های هم‌ردیف، هم‌ستون و هم‌ناحیه حذف می‌کند.
+  void _removeNumberFromRelatedNotes(int row, int col, int number) {
+    for (int c = 0; c < 9; c++) {
+      if (c != col) cells[row][c].notes.remove(number);
+    }
+    for (int r = 0; r < 9; r++) {
+      if (r != row) cells[r][col].notes.remove(number);
+    }
+
+    final startRow = (row ~/ 3) * 3;
+    final startCol = (col ~/ 3) * 3;
+    for (int r = startRow; r < startRow + 3; r++) {
+      for (int c = startCol; c < startCol + 3; c++) {
+        if (r != row || c != col) cells[r][c].notes.remove(number);
+      }
+    }
   }
 
   /// تابع اصلی برای تنظیم مقدار خانه (مشابه کد اصلی شما)
@@ -217,6 +318,7 @@ class HomeController extends GetxController {
         numberUsage.refresh();
         cells.refresh();
         _syncCompletedUnits();
+        removeInvalidNotes();
         _showMessage('عدد حذف شد', Colors.red, duration: 1);
       }
       return;
@@ -235,6 +337,7 @@ class HomeController extends GetxController {
       numberUsage.refresh();
       cells.refresh();
       _syncCompletedUnits();
+      removeInvalidNotes();
       return;
     }
 
@@ -262,6 +365,8 @@ class HomeController extends GetxController {
     cells[row][col].value = newNumber;
     cells[row][col].notes.clear();
     numberUsage[newNumber] = numberUsage[newNumber]! + 1;
+    _removeNumberFromRelatedNotes(row, col, newNumber);
+    removeInvalidNotes();
     numberUsage.refresh();
     cells.refresh();
     _afterNumberPlaced(row, col, newNumber);
@@ -288,6 +393,7 @@ class HomeController extends GetxController {
       numberUsage.refresh();
       cells.refresh();
       _syncCompletedUnits();
+      removeInvalidNotes();
       _showMessage('عدد حذف شد', Colors.red, duration: 1);
     }
   }
@@ -370,6 +476,8 @@ class HomeController extends GetxController {
     cells[row][col].value = correctNumber;
     cells[row][col].notes.clear();
     numberUsage[correctNumber] = (numberUsage[correctNumber] ?? 0) + 1;
+    _removeNumberFromRelatedNotes(row, col, correctNumber);
+    removeInvalidNotes();
 
     currentHelperUses.value++;
     cells.refresh();
