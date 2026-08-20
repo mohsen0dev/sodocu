@@ -24,6 +24,12 @@ class _SudokuBoardState extends State<SudokuBoard> {
     ctrl.newGame();
   }
 
+  void _selectNumber(int number) {
+    ctrl.setNumber(number);
+    // بازسازی مستقیم والد، مستقل از زمان‌بندی واکنش‌گر GetX.
+    if (mounted) setState(() {});
+  }
+
   void _updateCell(int row, int col, int value) {
     if (ctrl.noteMode.value) {
       ctrl.toggleNote(row, col, value);
@@ -106,6 +112,26 @@ class _SudokuBoardState extends State<SudokuBoard> {
         ctrl.difficulty.value = newDiff;
         Get.back();
         setState(() {});
+      },
+    );
+  }
+
+  void _confirmCleanInvalidNotes(int invalidCount) {
+    Get.defaultDialog(
+      title: 'پاک‌سازی یادداشت‌ها',
+      titleStyle: const TextStyle(
+        fontSize: 20,
+        fontWeight: FontWeight.bold,
+        color: Colors.orange,
+      ),
+      middleText:
+          '$invalidCount یادداشت نامعتبر پیدا شد.\nآیا می‌خواهید همهٔ آن‌ها پاک شوند؟',
+      textCancel: 'انصراف',
+      textConfirm: 'پاک‌سازی',
+      buttonColor: Colors.orange,
+      onConfirm: () {
+        Get.back();
+        ctrl.cleanInvalidNotes();
       },
     );
   }
@@ -234,7 +260,8 @@ class _SudokuBoardState extends State<SudokuBoard> {
             return Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: List.generate(10, (index) {
-                final number = index; // 0 تا 9
+                return Obx(() {
+                  final number = index; // 0 تا 9
                 final used = ctrl.numberUsage[number] ?? 0;
                 final isSelected = ctrl.selectedNumber.value == number;
 
@@ -242,7 +269,7 @@ class _SudokuBoardState extends State<SudokuBoard> {
                 if (number == 0) {
                   return GestureDetector(
                     onTap: () {
-                      ctrl.setNumber(0); // انتخاب حالت حذف
+                      _selectNumber(0); // انتخاب حالت حذف
                     },
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 150),
@@ -274,26 +301,37 @@ class _SudokuBoardState extends State<SudokuBoard> {
                   onTap: isDisabled
                       ? null
                       : () {
-                          ctrl.setNumber(number);
+                          _selectNumber(number);
                         },
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 150),
                     width: cellSize.clamp(30.0, 45.0),
                     height: cellSize.clamp(30.0, 45.0),
-                    decoration: BoxDecoration(
-                      color: isSelected
-                          ? Colors.blue.shade200
-                          : Colors.transparent,
-                      border: Border.all(
-                        color: isDisabled
-                            ? Colors.grey.shade800
-                            : isSelected
-                            ? Colors.blue
-                            : Colors.white,
-                        width: 0.5,
+                    key: ValueKey('number-button-$number'),
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? Colors.blue.shade700
+                            : Colors.transparent,
+                        border: Border.all(
+                          color: isDisabled
+                              ? Colors.grey.shade800
+                              : isSelected
+                              ? Colors.lightBlueAccent
+                              : Colors.white,
+                          width: isSelected ? 2 : 0.5,
+                        ),
+                        borderRadius: BorderRadius.circular(8),
+                        boxShadow: isSelected
+                            ? [
+                                BoxShadow(
+                                  color: Colors.blue.withValues(alpha: 0.45),
+                                  blurRadius: 8,
+                                  spreadRadius: 1,
+                                ),
+                              ]
+                            : null,
                       ),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
+
                     child: Stack(
                       children: [
                         Positioned(
@@ -305,7 +343,7 @@ class _SudokuBoardState extends State<SudokuBoard> {
                               fontSize: 10,
                               fontWeight: FontWeight.w500,
                               color: isSelected
-                                  ? Colors.blue.shade800
+                                  ? Colors.white70
                                   : Colors.grey.shade600,
                             ),
                           ),
@@ -319,7 +357,7 @@ class _SudokuBoardState extends State<SudokuBoard> {
                               color: isDisabled
                                   ? Colors.grey.shade800
                                   : isSelected
-                                  ? Colors.blue.shade800
+                                  ? Colors.white
                                   : Colors.white,
                             ),
                           ),
@@ -328,6 +366,7 @@ class _SudokuBoardState extends State<SudokuBoard> {
                     ),
                   ),
                 );
+                });
               }),
             );
           },
@@ -371,16 +410,19 @@ class _SudokuBoardState extends State<SudokuBoard> {
                   if (ctrl.puzzle != null && ctrl.puzzle![row][col] != 0) {
                     return Obx(() {
                       final cellValue = int.parse(ctrl.getCellValue(row, col));
-                      final highlight = ctrl.selectedNumber.value == cellValue;
-                      return _AnimatedCellContainer(
-                        row: row,
-                        col: col,
-                        ctrl: ctrl,
-                        borderColor: highlight
-                            ? Colors.orange
-                            : Colors.grey.shade500,
-                        borderWidth: highlight ? 3 : 0.5,
-                        child: Center(
+                      final highlight = ctrl.selectedNumber.value == cellValue;                        return _AnimatedCellContainer(
+                          row: row,
+                          col: col,
+                          ctrl: ctrl,
+                          borderColor: highlight
+                              ? Colors.orange
+                              : Colors.grey.shade500,
+                          borderWidth: highlight ? 3 : 0.5,
+                          backgroundColor: highlight
+                              ? Colors.orange.withValues(alpha: 0.2)
+                              : null,
+                          child: Center(
+
                           child: _AnimatedBoardNumber(
                             number: cellValue,
                             celebratingNumber: ctrl.celebratingNumber.value,
@@ -427,6 +469,8 @@ class _SudokuBoardState extends State<SudokuBoard> {
                       final value = ctrl.cells[row][col].value;
                       final isSelectedCell =
                           ctrl.selectedRow == row && ctrl.selectedCol == col;
+                      final isSelectedNumber =
+                          value != 0 && ctrl.selectedNumber.value == value;
 
                       return _AnimatedCellContainer(
                         row: row,
@@ -440,6 +484,8 @@ class _SudokuBoardState extends State<SudokuBoard> {
                             : 1,
                         backgroundColor: isSelectedCell
                             ? Colors.amber.withValues(alpha: 0.12)
+                            : isSelectedNumber
+                            ? Colors.blue.withValues(alpha: 0.18)
                             : null,
                         child: Stack(
                           fit: StackFit.expand,
@@ -612,14 +658,23 @@ class _SudokuBoardState extends State<SudokuBoard> {
             ),
           ),
           const SizedBox(height: 12),
-          SizedBox(
-            width: 300,
-            child: OutlinedButton.icon(
-              onPressed: ctrl.cleanInvalidNotes,
-              icon: const Icon(Icons.cleaning_services_outlined),
-              label: const Text('پاک‌سازی یادداشت‌های نامعتبر'),
-            ),
-          ),
+          Obx(() {
+            final invalidCount = ctrl.invalidNotesCount();
+            return SizedBox(
+              width: 300,
+              child: OutlinedButton.icon(
+                onPressed: invalidCount == 0
+                    ? null
+                    : () => _confirmCleanInvalidNotes(invalidCount),
+                icon: const Icon(Icons.cleaning_services_outlined),
+                label: Text(
+                  invalidCount == 0
+                      ? 'یادداشت نامعتبر وجود ندارد'
+                      : 'پاک‌سازی یادداشت‌های نامعتبر ($invalidCount)',
+                ),
+              ),
+            );
+          }),
         ],
       ),
     );

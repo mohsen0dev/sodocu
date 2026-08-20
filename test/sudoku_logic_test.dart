@@ -156,6 +156,7 @@ void main() {
       controller.cells[0][0].value = 5;
       controller.cells[0][1].notes.addAll({5, 6});
 
+      expect(controller.invalidNotesCount(), 1);
       final removed = controller.removeInvalidNotes();
 
       expect(removed, 1);

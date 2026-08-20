@@ -156,6 +156,8 @@ class HomeController extends GetxController {
   /// تنظیم عدد انتخاب شده توسط کاربر
   void setNumber(int num) {
     selectedNumber.value = num;
+    // حتی با انتخاب دوبارهٔ همان عدد، ویجت‌های وابسته باید بازسازی شوند.
+    selectedNumber.refresh();
     // اگر عدد 0 انتخاب شد (حذف)، حالت حذف فعال می‌شود
     if (num == 0) {
       _showMessage('حالت حذف فعال شد', Colors.red, duration: 1);
@@ -285,6 +287,30 @@ class HomeController extends GetxController {
 
     if (removedCount > 0) cells.refresh();
     return removedCount;
+  }
+
+  /// تعداد یادداشت‌هایی که با وضعیت فعلی جدول ناسازگار هستند.
+  int invalidNotesCount() {
+    var invalidCount = 0;
+    final board = _currentBoard();
+
+    for (int row = 0; row < 9; row++) {
+      for (int col = 0; col < 9; col++) {
+        final cell = cells[row][col];
+        if (cell.notes.isEmpty) continue;
+
+        if (cell.isFixed || cell.value != 0) {
+          invalidCount += cell.notes.length;
+          continue;
+        }
+
+        for (final number in cell.notes) {
+          if (!_canPlace(board, row, col, number)) invalidCount++;
+        }
+      }
+    }
+
+    return invalidCount;
   }
 
   /// پاک‌سازی دستی یادداشت‌های نامعتبر و نمایش نتیجه به کاربر.
