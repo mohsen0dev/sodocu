@@ -500,7 +500,8 @@ class HomeController extends GetxController {
     return puzzle;
   }
 
-  bool _solveSudokuWithLimit(List<List<int>> grid, {int limit = 2}) {
+  /// تعداد جواب‌های جدول را می‌شمارد (حداکثر تا [limit] جواب).
+  int _countSolutions(List<List<int>> grid, {int limit = 2}) {
     int solutions = 0;
     bool solve() {
       int row = -1, col = -1;
@@ -529,13 +530,13 @@ class HomeController extends GetxController {
     }
 
     solve();
-    return solutions >= limit;
+    return solutions;
   }
 
   /// بررسی می‌کند که پازل فقط یک راه‌حل یکتا داشته باشد.
   bool hasUniqueSolution(List<List<int>> puzzle) {
     final clone = puzzle.map((row) => [...row]).toList();
-    return !_solveSudokuWithLimit(clone, limit: 2);
+    return _countSolutions(clone, limit: 2) == 1;
   }
 
   // ==================== توابع کمکی UI ====================
@@ -625,42 +626,19 @@ class HomeController extends GetxController {
   }
 
   Color? getCompletedUnitBackground(int row, int col) {
-    final rowDone = _completedRows.contains(row);
-    final colDone = _completedCols.contains(col);
-    final boxDone = _completedBoxes.contains(boxIndex(row, col));
-
-    if (!rowDone && !colDone && !boxDone) return null;
-
-    if (rowDone && colDone) {
-      return Colors.purple.withValues(alpha: 0.22);
-    }
-    if (rowDone) {
-      return Colors.lightBlue.withValues(alpha: 0.18);
-    }
-    if (colDone) {
-      return Colors.deepPurple.withValues(alpha: 0.18);
-    }
+    final done = _completedRows.contains(row) ||
+        _completedCols.contains(col) ||
+        _completedBoxes.contains(boxIndex(row, col));
+    if (!done) return null;
     return Colors.teal.withValues(alpha: 0.18);
   }
 
   Color getCompletedUnitPeakBackground(int row, int col) {
-    final rowDone = _completedRows.contains(row);
-    final colDone = _completedCols.contains(col);
-    final boxDone = _completedBoxes.contains(boxIndex(row, col));
-
-    if (rowDone && colDone) {
-      return Colors.purple.withValues(alpha: 0.42);
-    }
-    if (rowDone) {
-      return Colors.lightBlue.withValues(alpha: 0.38);
-    }
-    if (colDone) {
-      return Colors.deepPurple.withValues(alpha: 0.38);
-    }
-    if (boxDone) {
-      return Colors.teal.withValues(alpha: 0.38);
-    }
-    return Colors.amber.withValues(alpha: 0.3);
+    final done = _completedRows.contains(row) ||
+        _completedCols.contains(col) ||
+        _completedBoxes.contains(boxIndex(row, col));
+    if (!done) return Colors.amber.withValues(alpha: 0.3);
+    return Colors.teal.withValues(alpha: 0.38);
   }
 
   bool _isUnitValuesComplete(List<int> values) {
