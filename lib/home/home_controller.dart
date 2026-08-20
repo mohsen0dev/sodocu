@@ -117,7 +117,11 @@ class HomeController extends GetxController {
   }
 
   void _saveToHistory() {
-    _undoStack.add(_copyCells());
+    _saveSnapshotToHistory(_copyCells());
+  }
+
+  void _saveSnapshotToHistory(List<List<CellData>> snapshot) {
+    _undoStack.add(snapshot);
     _redoStack.clear();
     _updateHistoryButtons();
   }
@@ -191,8 +195,10 @@ class HomeController extends GetxController {
 
     _saveToHistory();
     if (previousValue != 0) {
-      numberUsage[previousValue] =
-          (numberUsage[previousValue]! - 1).clamp(0, 9);
+      numberUsage[previousValue] = (numberUsage[previousValue]! - 1).clamp(
+        0,
+        9,
+      );
     }
     cells[r][c].value = number;
     cells[r][c].notes.clear();
@@ -279,6 +285,21 @@ class HomeController extends GetxController {
 
     if (removedCount > 0) cells.refresh();
     return removedCount;
+  }
+
+  /// پاک‌سازی دستی یادداشت‌های نامعتبر و نمایش نتیجه به کاربر.
+  void cleanInvalidNotes() {
+    final before = _copyCells();
+    final removedCount = removeInvalidNotes();
+    if (removedCount > 0) {
+      _saveSnapshotToHistory(before);
+    }
+    _showMessage(
+      removedCount == 0
+          ? 'یادداشت نامعتبری پیدا نشد.'
+          : '$removedCount یادداشت نامعتبر پاک شد.',
+      removedCount == 0 ? Colors.blue : Colors.green,
+    );
   }
 
   /// کاندیدای واردشده را از خانه‌های هم‌ردیف، هم‌ستون و هم‌ناحیه حذف می‌کند.
@@ -734,7 +755,8 @@ class HomeController extends GetxController {
   }
 
   Color? getCompletedUnitBackground(int row, int col) {
-    final done = _completedRows.contains(row) ||
+    final done =
+        _completedRows.contains(row) ||
         _completedCols.contains(col) ||
         _completedBoxes.contains(boxIndex(row, col));
     if (!done) return null;
@@ -742,7 +764,8 @@ class HomeController extends GetxController {
   }
 
   Color getCompletedUnitPeakBackground(int row, int col) {
-    final done = _completedRows.contains(row) ||
+    final done =
+        _completedRows.contains(row) ||
         _completedCols.contains(col) ||
         _completedBoxes.contains(boxIndex(row, col));
     if (!done) return Colors.amber.withValues(alpha: 0.3);
@@ -830,28 +853,28 @@ class HomeController extends GetxController {
   // ==================== پیام‌ها ====================
 
   void _showMessage(String message, Color color, {int duration = 2}) {
-    Get.snackbar(
-      '',
-      message,
-      snackPosition: SnackPosition.BOTTOM,
-      backgroundColor: color,
-      colorText: Colors.white,
-      duration: Duration(seconds: duration),
-      margin: const EdgeInsets.all(10),
-      borderRadius: 12,
+    Get.showSnackbar(
+      GetSnackBar(
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: color,
+        messageText: Text(message, style: TextStyle(color: Colors.white)),
+        duration: Duration(seconds: duration),
+        margin: const EdgeInsets.all(10),
+        borderRadius: 12,
+      ),
     );
   }
 
   void showError(String message) {
-    Get.snackbar(
-      'خطا',
-      message,
-      snackPosition: SnackPosition.BOTTOM,
-      backgroundColor: Colors.red.shade700,
-      colorText: Colors.white,
-      duration: const Duration(seconds: 2),
-      margin: const EdgeInsets.all(10),
-      borderRadius: 12,
+    Get.showSnackbar(
+      GetSnackBar(
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.red.shade700,
+        messageText: Text(message, style: TextStyle(color: Colors.white)),
+        duration: Duration(seconds: 2),
+        margin: EdgeInsets.all(10),
+        borderRadius: 12,
+      ),
     );
   }
 

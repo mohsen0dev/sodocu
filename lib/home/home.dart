@@ -611,6 +611,15 @@ class _SudokuBoardState extends State<SudokuBoard> {
               ),
             ),
           ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: 300,
+            child: OutlinedButton.icon(
+              onPressed: ctrl.cleanInvalidNotes,
+              icon: const Icon(Icons.cleaning_services_outlined),
+              label: const Text('پاک‌سازی یادداشت‌های نامعتبر'),
+            ),
+          ),
         ],
       ),
     );
