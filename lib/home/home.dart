@@ -21,7 +21,43 @@ class _SudokuBoardState extends State<SudokuBoard> {
   @override
   void initState() {
     super.initState();
-    ctrl.newGame();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _initializeGame());
+  }
+
+  @override
+  void dispose() {
+    ctrl.stopGameTimer();
+    super.dispose();
+  }
+
+  Future<void> _initializeGame() async {
+    final hasPreviousGame = await ctrl.initialize();
+    if (!mounted || !hasPreviousGame) return;
+
+    final continueGame = await Get.dialog<bool>(
+      AlertDialog(
+        title: const Text('ادامه بازی قبلی؟'),
+        content: Text(
+          'یک بازی ذخیره‌شده پیدا شد. زمان سپری‌شده: '
+          '${ctrl.formatDuration(ctrl.elapsedSeconds.value)}',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Get.back(result: false),
+            child: const Text('بازی جدید'),
+          ),
+          FilledButton(
+            onPressed: () => Get.back(result: true),
+            child: const Text('ادامه'),
+          ),
+        ],
+      ),
+      barrierDismissible: false,
+    );
+
+    if (mounted && continueGame != true) {
+      await ctrl.newGame();
+    }
   }
 
   void _selectNumber(int number) {
@@ -50,6 +86,16 @@ class _SudokuBoardState extends State<SudokuBoard> {
     int row,
     int col,
   ) {
+    if (_showPicker && _selectedRow == row && _selectedCol == col) {
+      setState(() {
+        _showPicker = false;
+        _pickerPosition = null;
+        _selectedRow = null;
+        _selectedCol = null;
+      });
+      return;
+    }
+
     if (ctrl.cells[row][col].isFixed) {
       ctrl.showError('این خانه قابل تغییر نیست!');
       return;
@@ -152,16 +198,16 @@ class _SudokuBoardState extends State<SudokuBoard> {
         actions: [
           Obx(
             () => IconButton(
-              onPressed: ctrl.canRedo.value ? ctrl.redo : null,
+              onPressed: ctrl.canUndo.value ? ctrl.undo : null,
               icon: const Icon(Icons.undo),
-              tooltip: 'بازگردانی',
+              tooltip: 'بازگشت',
             ),
           ),
           Obx(
             () => IconButton(
-              onPressed: ctrl.canUndo.value ? ctrl.undo : null,
+              onPressed: ctrl.canRedo.value ? ctrl.redo : null,
               icon: const Icon(Icons.redo),
-              tooltip: 'بازگشت',
+              tooltip: 'بازگردانی',
             ),
           ),
 
@@ -209,6 +255,7 @@ class _SudokuBoardState extends State<SudokuBoard> {
                   child: Column(
                     spacing: 20,
                     children: [
+                      _gameInfoWidget(),
                       _difficultyWidget(),
                       _boardWidget(),
                       _numberConstWidget(),
@@ -223,6 +270,75 @@ class _SudokuBoardState extends State<SudokuBoard> {
           ),
         );
       }),
+    );
+  }
+
+  Widget _gameInfoWidget() {
+    return Obx(
+      () => ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 460),
+        child: Row(
+          children: [
+            Expanded(
+              child: _infoCard(
+                icon: Icons.timer_outlined,
+                title: 'زمان بازی',
+                value: ctrl.formatDuration(ctrl.elapsedSeconds.value),
+                color: Colors.blue,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _infoCard(
+                icon: Icons.emoji_events_outlined,
+                title: 'بهترین زمان',
+                value: ctrl.bestTimes[ctrl.difficulty.value.name] == null
+                    ? '--:--'
+                    : ctrl.formatDuration(
+                        ctrl.bestTimes[ctrl.difficulty.value.name]!,
+                      ),
+                color: Colors.amber,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _infoCard({
+    required IconData icon,
+    required String title,
+    required String value,
+    required Color color,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withValues(alpha: 0.35)),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, color: color, size: 22),
+          const SizedBox(width: 8),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title, style: const TextStyle(fontSize: 12)),
+              Text(
+                value,
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 
@@ -262,52 +378,52 @@ class _SudokuBoardState extends State<SudokuBoard> {
               children: List.generate(10, (index) {
                 return Obx(() {
                   final number = index; // 0 تا 9
-                final used = ctrl.numberUsage[number] ?? 0;
-                final isSelected = ctrl.selectedNumber.value == number;
+                  final used = ctrl.numberUsage[number] ?? 0;
+                  final isSelected = ctrl.selectedNumber.value == number;
 
-                // عدد 9 برای دکمه حذف (آیکون)
-                if (number == 0) {
+                  // عدد 9 برای دکمه حذف (آیکون)
+                  if (number == 0) {
+                    return GestureDetector(
+                      onTap: () {
+                        _selectNumber(0); // انتخاب حالت حذف
+                      },
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 150),
+                        width: cellSize.clamp(30.0, 45.0),
+                        height: cellSize.clamp(30.0, 45.0),
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? Colors.red.shade200
+                              : Colors.transparent,
+                          border: Border.all(
+                            color: isSelected ? Colors.red : Colors.white,
+                            width: 0.5,
+                          ),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Icon(
+                          Icons.delete_outline,
+                          color: isSelected ? Colors.red : Colors.red.shade300,
+                          size: cellSize.clamp(20.0, 28.0),
+                        ),
+                      ),
+                    );
+                  }
+
+                  // اعداد 1 تا 9
+                  final isDisabled = used >= 9;
+
                   return GestureDetector(
-                    onTap: () {
-                      _selectNumber(0); // انتخاب حالت حذف
-                    },
+                    onTap: isDisabled
+                        ? null
+                        : () {
+                            _selectNumber(number);
+                          },
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 150),
                       width: cellSize.clamp(30.0, 45.0),
                       height: cellSize.clamp(30.0, 45.0),
-                      decoration: BoxDecoration(
-                        color: isSelected
-                            ? Colors.red.shade200
-                            : Colors.transparent,
-                        border: Border.all(
-                          color: isSelected ? Colors.red : Colors.white,
-                          width: 0.5,
-                        ),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Icon(
-                        Icons.delete_outline,
-                        color: isSelected ? Colors.red : Colors.red.shade300,
-                        size: cellSize.clamp(20.0, 28.0),
-                      ),
-                    ),
-                  );
-                }
-
-                // اعداد 1 تا 9
-                final isDisabled = used >= 9;
-
-                return GestureDetector(
-                  onTap: isDisabled
-                      ? null
-                      : () {
-                          _selectNumber(number);
-                        },
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 150),
-                    width: cellSize.clamp(30.0, 45.0),
-                    height: cellSize.clamp(30.0, 45.0),
-                    key: ValueKey('number-button-$number'),
+                      key: ValueKey('number-button-$number'),
                       decoration: BoxDecoration(
                         color: isSelected
                             ? Colors.blue.shade700
@@ -332,40 +448,40 @@ class _SudokuBoardState extends State<SudokuBoard> {
                             : null,
                       ),
 
-                    child: Stack(
-                      children: [
-                        Positioned(
-                          top: 2,
-                          right: 4,
-                          child: Text(
-                            used.toString(),
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w500,
-                              color: isSelected
-                                  ? Colors.white70
-                                  : Colors.grey.shade600,
+                      child: Stack(
+                        children: [
+                          Positioned(
+                            top: 2,
+                            right: 4,
+                            child: Text(
+                              used.toString(),
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w500,
+                                color: isSelected
+                                    ? Colors.white70
+                                    : Colors.grey.shade600,
+                              ),
                             ),
                           ),
-                        ),
-                        Center(
-                          child: Text(
-                            number.toString(),
-                            style: TextStyle(
-                              fontSize: 24,
-                              fontWeight: FontWeight.w500,
-                              color: isDisabled
-                                  ? Colors.grey.shade800
-                                  : isSelected
-                                  ? Colors.white
-                                  : Colors.white,
+                          Center(
+                            child: Text(
+                              number.toString(),
+                              style: TextStyle(
+                                fontSize: 24,
+                                fontWeight: FontWeight.w500,
+                                color: isDisabled
+                                    ? Colors.grey.shade800
+                                    : isSelected
+                                    ? Colors.white
+                                    : Colors.white,
+                              ),
                             ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
-                );
+                  );
                 });
               }),
             );
@@ -410,19 +526,19 @@ class _SudokuBoardState extends State<SudokuBoard> {
                   if (ctrl.puzzle != null && ctrl.puzzle![row][col] != 0) {
                     return Obx(() {
                       final cellValue = int.parse(ctrl.getCellValue(row, col));
-                      final highlight = ctrl.selectedNumber.value == cellValue;                        return _AnimatedCellContainer(
-                          row: row,
-                          col: col,
-                          ctrl: ctrl,
-                          borderColor: highlight
-                              ? Colors.orange
-                              : Colors.grey.shade500,
-                          borderWidth: highlight ? 3 : 0.5,
-                          backgroundColor: highlight
-                              ? Colors.orange.withValues(alpha: 0.2)
-                              : null,
-                          child: Center(
-
+                      final highlight = ctrl.selectedNumber.value == cellValue;
+                      return _AnimatedCellContainer(
+                        row: row,
+                        col: col,
+                        ctrl: ctrl,
+                        borderColor: highlight
+                            ? Colors.orange
+                            : Colors.grey.shade500,
+                        borderWidth: highlight ? 3 : 0.5,
+                        backgroundColor: highlight
+                            ? Colors.orange.withValues(alpha: 0.2)
+                            : null,
+                        child: Center(
                           child: _AnimatedBoardNumber(
                             number: cellValue,
                             celebratingNumber: ctrl.celebratingNumber.value,

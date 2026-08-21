@@ -1,5 +1,9 @@
+import 'dart:async';
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// سطح دشواری بازی سودوکو
 enum Difficulty { easy, medium, hard }
@@ -40,6 +44,12 @@ class HomeController extends GetxController {
   /// نمایش اعداد ثابت (ویجت اعداد پایین صفحه)
   RxBool isShow = false.obs;
 
+  /// زمان سپری‌شده از شروع بازی بر حسب ثانیه.
+  final RxInt elapsedSeconds = 0.obs;
+
+  /// بهترین زمان ثبت‌شده برای هر سطح دشواری.
+  final RxMap<String, int> bestTimes = <String, int>{}.obs;
+
   Rx<Difficulty> difficulty = Difficulty.easy.obs;
 
   /// عدد انتخاب شده توسط کاربر (0 = حالت پاک کردن، 1-9 = اعداد)
@@ -74,7 +84,18 @@ class HomeController extends GetxController {
   RxBool canRedo = false.obs;
 
   // ==================== وضعیت بارگذاری ====================
-  RxBool isLoading = false.obs;
+  RxBool isLoading = true.obs;
+
+  SharedPreferences? _preferences;
+  Timer? _gameTimer;
+  bool _hasActiveGame = false;
+  bool _isRestoring = false;
+  bool _isSaving = false;
+  bool _saveQueued = false;
+  int _gameSession = 0;
+
+  static const _savedGameKey = 'sudoku.saved_game';
+  static const _bestTimesKey = 'sudoku.best_times';
 
   // ==================== ثابت‌ها ====================
   static const Map<Difficulty, int> cluesCount = {
@@ -92,11 +113,258 @@ class HomeController extends GetxController {
   void onInit() {
     super.onInit();
     _initCells();
-    ever(difficulty, (_) => newGame());
+    ever(difficulty, (_) {
+      if (!_isRestoring) unawaited(newGame());
+    });
+  }
+
+  /// داده‌های ذخیره‌شده را بارگذاری می‌کند و در صورت وجود، بازی قبلی را برمی‌گرداند.
+  Future<bool> initialize() async {
+    try {
+      // در صورت در دسترس نبودن سرویس ذخیره‌سازی، بازی نباید در حالت بارگذاری بماند.
+      _preferences = await SharedPreferences.getInstance().timeout(
+        const Duration(seconds: 1),
+      );
+      _loadBestTimes();
+      final savedGame = _preferences!.getString(_savedGameKey);
+      if (savedGame != null && _restoreSavedGame(savedGame) && !isSolved()) {
+        _startTimer();
+        isLoading.value = false;
+        return true;
+      }
+      _deleteSavedGame();
+    } catch (_) {
+      // خرابی داده ذخیره‌شده نباید مانع شروع یک بازی جدید شود.
+      await _preferences?.remove(_savedGameKey);
+    }
+
+    await newGame();
+    return false;
+  }
+
+  @override
+  void onClose() {
+    _gameTimer?.cancel();
+    _requestSave();
+    super.onClose();
   }
 
   void _initCells() {
     cells = RxList.generate(9, (_) => List.generate(9, (_) => CellData()).obs);
+  }
+
+  void _loadBestTimes() {
+    final raw = _preferences?.getString(_bestTimesKey);
+    if (raw == null) return;
+
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is Map) {
+        bestTimes.assignAll({
+          for (final entry in decoded.entries)
+            if (entry.key is String && entry.value is num)
+              entry.key as String: (entry.value as num).toInt(),
+        });
+      }
+    } catch (_) {
+      bestTimes.clear();
+    }
+  }
+
+  List<List<int>>? _parseBoard(dynamic raw) {
+    if (raw is! List || raw.length != 9) return null;
+    final board = <List<int>>[];
+    for (final rawRow in raw) {
+      if (rawRow is! List || rawRow.length != 9) return null;
+      final row = <int>[];
+      for (final value in rawRow) {
+        if (value is! num || value.toInt() < 0 || value.toInt() > 9) {
+          return null;
+        }
+        row.add(value.toInt());
+      }
+      board.add(row);
+    }
+    return board;
+  }
+
+  bool _restoreSavedGame(String raw) {
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map) return false;
+
+      final savedPuzzle = _parseBoard(decoded['puzzle']);
+      final savedSolution = _parseBoard(decoded['solution']);
+      final savedCells = decoded['cells'];
+      if (savedPuzzle == null ||
+          savedSolution == null ||
+          savedCells is! List ||
+          savedCells.length != 9) {
+        return false;
+      }
+
+      final difficultyName = decoded['difficulty'];
+      final savedDifficulty = Difficulty.values.firstWhere(
+        (item) => item.name == difficultyName,
+        orElse: () => Difficulty.easy,
+      );
+      final restoredCells = <List<CellData>>[];
+      for (final rawRow in savedCells) {
+        if (rawRow is! List || rawRow.length != 9) return false;
+        final row = <CellData>[];
+        for (final rawCell in rawRow) {
+          if (rawCell is! Map ||
+              rawCell['value'] is! num ||
+              rawCell['notes'] is! List) {
+            return false;
+          }
+          final value = (rawCell['value'] as num).toInt();
+          if (value < 0 || value > 9) return false;
+          final notes = <int>{};
+          for (final note in rawCell['notes']) {
+            if (note is! num || note.toInt() < 1 || note.toInt() > 9) {
+              return false;
+            }
+            notes.add(note.toInt());
+          }
+          row.add(
+            CellData(
+              value: value,
+              isFixed: rawCell['isFixed'] == true,
+              notes: notes,
+            ),
+          );
+        }
+        restoredCells.add(row);
+      }
+
+      _isRestoring = true;
+      difficulty.value = savedDifficulty;
+      _isRestoring = false;
+      puzzle = savedPuzzle;
+      _solution = savedSolution;
+      for (int row = 0; row < 9; row++) {
+        for (int col = 0; col < 9; col++) {
+          cells[row][col].value = restoredCells[row][col].value;
+          cells[row][col].notes = restoredCells[row][col].notes;
+          cells[row][col].isFixed = savedPuzzle[row][col] != 0;
+        }
+      }
+
+      final savedElapsed = decoded['elapsedSeconds'];
+      final savedAt = decoded['savedAt'];
+      var totalElapsed = savedElapsed is num ? savedElapsed.toInt() : 0;
+      if (savedAt is num) {
+        final elapsedWhileClosed =
+            (DateTime.now().millisecondsSinceEpoch - savedAt.toInt()) ~/ 1000;
+        totalElapsed += elapsedWhileClosed.clamp(0, 31536000);
+      }
+      elapsedSeconds.value = totalElapsed.clamp(0, 31536000);
+      final helperUses = decoded['currentHelperUses'];
+      currentHelperUses.value = helperUses is num
+          ? helperUses.toInt().clamp(0, maxHelperUses)
+          : 0;
+      selectedNumber.value = 0;
+      _undoStack.clear();
+      _redoStack.clear();
+      _updateHistoryButtons();
+      recalculateNumberUsage();
+      _syncCompletedUnits();
+      _hasActiveGame = true;
+      return true;
+    } catch (_) {
+      _isRestoring = false;
+      return false;
+    }
+  }
+
+  void _startTimer() {
+    _gameTimer?.cancel();
+    _gameTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!_hasActiveGame || isLoading.value) return;
+      elapsedSeconds.value++;
+      if (elapsedSeconds.value % 5 == 0) _requestSave();
+    });
+  }
+
+  void _stopTimer() {
+    _gameTimer?.cancel();
+    _gameTimer = null;
+  }
+
+  /// هنگام حذف صفحه، تایمر را متوقف و آخرین وضعیت را ذخیره می‌کند.
+  void stopGameTimer() {
+    _stopTimer();
+    _requestSave();
+  }
+
+  void _requestSave() {
+    if (!_hasActiveGame || _preferences == null) return;
+    if (_isSaving) {
+      _saveQueued = true;
+      return;
+    }
+    unawaited(_persistActiveGame(_gameSession));
+  }
+
+  Future<void> _persistActiveGame(int session) async {
+    if (!_hasActiveGame || _preferences == null || session != _gameSession) {
+      return;
+    }
+    _isSaving = true;
+    do {
+      _saveQueued = false;
+      if (!_hasActiveGame || session != _gameSession) break;
+      final data = {
+        'difficulty': difficulty.value.name,
+        'puzzle': puzzle,
+        'solution': _solution,
+        'cells': [
+          for (final row in cells)
+            [
+              for (final cell in row)
+                {
+                  'value': cell.value,
+                  'notes': cell.notes.toList(),
+                  'isFixed': cell.isFixed,
+                },
+            ],
+        ],
+        'currentHelperUses': currentHelperUses.value,
+        'elapsedSeconds': elapsedSeconds.value,
+        'savedAt': DateTime.now().millisecondsSinceEpoch,
+      };
+      await _preferences!.setString(_savedGameKey, jsonEncode(data));
+    } while (_saveQueued && _hasActiveGame && session == _gameSession);
+    _isSaving = false;
+    if (_saveQueued && _hasActiveGame) {
+      _saveQueued = false;
+      _requestSave();
+    }
+  }
+
+  void _deleteSavedGame() {
+    _gameSession++;
+    _saveQueued = false;
+    _hasActiveGame = false;
+    _stopTimer();
+    unawaited(_preferences?.remove(_savedGameKey) ?? Future<bool>.value(false));
+  }
+
+  Future<void> _saveBestTime() async {
+    final key = difficulty.value.name;
+    final current = elapsedSeconds.value;
+    final previous = bestTimes[key];
+    if (previous != null && previous <= current) return;
+    bestTimes[key] = current;
+    bestTimes.refresh();
+    await _preferences?.setString(_bestTimesKey, jsonEncode(bestTimes));
+  }
+
+  String formatDuration(int seconds) {
+    final minutes = seconds ~/ 60;
+    final remainingSeconds = seconds % 60;
+    return '${minutes.toString().padLeft(2, '0')}:${remainingSeconds.toString().padLeft(2, '0')}';
   }
 
   // ==================== توابع کمکی ====================
@@ -136,8 +404,10 @@ class HomeController extends GetxController {
     _redoStack.add(_copyCells());
     _restoreCells(_undoStack.removeLast());
     _updateHistoryButtons();
+    recalculateNumberUsage();
     _syncCompletedUnits();
     celebratingUnits.clear();
+    _requestSave();
     _showMessage('مرحله قبل بازگردانی شد', Colors.orange);
   }
 
@@ -146,8 +416,10 @@ class HomeController extends GetxController {
     _undoStack.add(_copyCells());
     _restoreCells(_redoStack.removeLast());
     _updateHistoryButtons();
+    recalculateNumberUsage();
     _syncCompletedUnits();
     celebratingUnits.clear();
+    _requestSave();
     _showMessage('مرحله بعد بازیابی شد', Colors.orange);
   }
 
@@ -209,10 +481,11 @@ class HomeController extends GetxController {
     removeInvalidNotes();
     numberUsage.refresh();
     cells.refresh();
+    _requestSave();
     _afterNumberPlaced(r, c, number);
 
     if (isSolved()) {
-      _showSuccessDialog();
+      _completeGame();
     }
   }
 
@@ -238,6 +511,7 @@ class HomeController extends GetxController {
       cells[r][c].notes.add(number);
     }
     cells.refresh();
+    _requestSave();
   }
 
   /// ثبت کاندیدا با عدد انتخاب‌شده در نوار اعداد.
@@ -257,6 +531,7 @@ class HomeController extends GetxController {
     _saveToHistory();
     cells[row][col].notes.clear();
     cells.refresh();
+    _requestSave();
   }
 
   /// کاندیداهایی را که با وضعیت فعلی جدول ناسازگار شده‌اند پاک می‌کند.
@@ -319,6 +594,7 @@ class HomeController extends GetxController {
     final removedCount = removeInvalidNotes();
     if (removedCount > 0) {
       _saveSnapshotToHistory(before);
+      _requestSave();
     }
     _showMessage(
       removedCount == 0
@@ -366,6 +642,7 @@ class HomeController extends GetxController {
         cells.refresh();
         _syncCompletedUnits();
         removeInvalidNotes();
+        _requestSave();
         _showMessage('عدد حذف شد', Colors.red, duration: 1);
       }
       return;
@@ -385,6 +662,7 @@ class HomeController extends GetxController {
       cells.refresh();
       _syncCompletedUnits();
       removeInvalidNotes();
+      _requestSave();
       return;
     }
 
@@ -416,11 +694,12 @@ class HomeController extends GetxController {
     removeInvalidNotes();
     numberUsage.refresh();
     cells.refresh();
+    _requestSave();
     _afterNumberPlaced(row, col, newNumber);
 
     // بررسی برنده شدن
     if (isSolved()) {
-      _showSuccessDialog();
+      _completeGame();
     }
   }
 
@@ -441,6 +720,7 @@ class HomeController extends GetxController {
       cells.refresh();
       _syncCompletedUnits();
       removeInvalidNotes();
+      _requestSave();
       _showMessage('عدد حذف شد', Colors.red, duration: 1);
     }
   }
@@ -529,21 +809,27 @@ class HomeController extends GetxController {
     currentHelperUses.value++;
     cells.refresh();
     numberUsage.refresh();
+    _requestSave();
     _afterNumberPlaced(row, col, correctNumber);
 
     _showMessage('راهنما: خانه با عدد $correctNumber پر شد', Colors.blue);
 
     if (isSolved()) {
-      _showSuccessDialog();
+      _completeGame();
     }
   }
 
   // ==================== ساخت پازل ====================
 
   Future<void> newGame() async {
-    if (isLoading.value) return;
+    if (isLoading.value && _hasActiveGame) return;
 
     isLoading.value = true;
+    _gameSession++;
+    _hasActiveGame = false;
+    _stopTimer();
+    elapsedSeconds.value = 0;
+    unawaited(_preferences?.remove(_savedGameKey) ?? Future<bool>.value(false));
     _currentRetryCount = 0;
 
     try {
@@ -602,6 +888,9 @@ class HomeController extends GetxController {
       cells.refresh();
       numberUsage.refresh();
       _syncCompletedUnits();
+      _hasActiveGame = true;
+      _startTimer();
+      _requestSave();
       _showMessage('بازی جدید شروع شد!', Colors.green);
     } catch (e) {
       showError('خطا در شروع بازی: $e');
@@ -659,27 +948,39 @@ class HomeController extends GetxController {
   int _countSolutions(List<List<int>> grid, {int limit = 2}) {
     int solutions = 0;
     bool solve() {
-      int row = -1, col = -1;
+      int row = -1;
+      int col = -1;
+      List<int>? bestCandidates;
+
+      // انتخاب خانه با کمترین کاندیدا، بررسی یکتایی را بسیار سریع‌تر می‌کند.
       for (int r = 0; r < 9; r++) {
         for (int c = 0; c < 9; c++) {
-          if (grid[r][c] == 0) {
+          if (grid[r][c] != 0) continue;
+          final candidates = [
+            for (int number = 1; number <= 9; number++)
+              if (_canPlace(grid, r, c, number)) number,
+          ];
+          if (candidates.isEmpty) return false;
+          if (bestCandidates == null ||
+              candidates.length < bestCandidates.length) {
             row = r;
             col = c;
-            r = 9;
-            break;
+            bestCandidates = candidates;
+            if (candidates.length == 1) break;
           }
         }
+        if (bestCandidates?.length == 1) break;
       }
-      if (row == -1) {
+
+      if (bestCandidates == null) {
         solutions++;
         return solutions >= limit;
       }
-      for (int num = 1; num <= 9; num++) {
-        if (_canPlace(grid, row, col, num)) {
-          grid[row][col] = num;
-          if (solve()) return true;
-          grid[row][col] = 0;
-        }
+
+      for (final number in bestCandidates) {
+        grid[row][col] = number;
+        if (solve()) return true;
+        grid[row][col] = 0;
       }
       return false;
     }
@@ -695,6 +996,13 @@ class HomeController extends GetxController {
   }
 
   // ==================== توابع کمکی UI ====================
+
+  void _completeGame() {
+    if (!_hasActiveGame) return;
+    unawaited(_saveBestTime());
+    _deleteSavedGame();
+    _showSuccessDialog();
+  }
 
   bool isSolved() {
     if (_solution == null) return false;
