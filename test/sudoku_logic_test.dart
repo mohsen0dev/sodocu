@@ -241,4 +241,45 @@ void main() {
       expect(controller.numberUsage[1], 0);
     });
   });
+
+  group('حالت چالش روزانه', () {
+    late HomeController controller;
+
+    setUp(() {
+      Get.testMode = true;
+      controller = HomeController();
+      Get.put(controller);
+    });
+
+    tearDown(() {
+      // توقف تایمر بازی تا تست با تایمر معلق تمام نشود.
+      controller.onClose();
+      Get.reset();
+    });
+
+    test('پازل روزانه در طول یک روز ثابت می‌ماند', () async {
+      controller.gameMode.value = GameMode.daily;
+
+      await controller.newGame();
+      final first = controller.puzzle!.map((r) => [...r]).toList();
+
+      await controller.newGame();
+      final second = controller.puzzle!.map((r) => [...r]).toList();
+
+      expect(first, equals(second));
+      expect(controller.hasUniqueSolution(controller.puzzle!), isTrue);
+    });
+
+    test('پازل روزانه با سطح ثابت تولید می‌شود', () async {
+      controller.gameMode.value = GameMode.daily;
+
+      await controller.newGame();
+      final clueCount = countClues(controller.puzzle!);
+      final expected =
+          HomeController.cluesCount[HomeController.dailyDifficulty]!;
+
+      expect(clueCount, lessThanOrEqualTo(expected));
+      expect(clueCount, greaterThanOrEqualTo(expected - 5));
+    });
+  });
 }

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math' show Random;
 
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -7,6 +8,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 /// سطح دشواری بازی سودوکو
 enum Difficulty { easy, medium, hard }
+
+/// حالت اجرای بازی؛ همه داده‌ها فقط روی همین دستگاه ذخیره می‌شوند.
+enum GameMode { classic, timed, noHints, daily, record }
 
 /// مدل داده برای هر خانه
 class CellData {
@@ -44,10 +48,19 @@ class HomeController extends GetxController {
   /// نمایش اعداد ثابت (ویجت اعداد پایین صفحه)
   RxBool isShow = false.obs;
 
+  /// حالت فعلی بازی.
+  Rx<GameMode> gameMode = GameMode.classic.obs;
+
   /// زمان سپری‌شده از شروع بازی بر حسب ثانیه.
   final RxInt elapsedSeconds = 0.obs;
+  static const int timedGameSeconds = 5 * 60;
+  final RxInt remainingSeconds = timedGameSeconds.obs;
+  final RxBool isGameOver = false.obs;
 
-  /// بهترین زمان ثبت‌شده برای هر سطح دشواری.
+  /// سطح ثابت چالش روزانه؛ پازل هر روز یکسان و مستقل از انتخاب کاربر است.
+  static const Difficulty dailyDifficulty = Difficulty.medium;
+
+  /// بهترین رکورد محلی بر اساس حالت و سطح دشواری.
   final RxMap<String, int> bestTimes = <String, int>{}.obs;
 
   Rx<Difficulty> difficulty = Difficulty.easy.obs;
@@ -96,6 +109,7 @@ class HomeController extends GetxController {
 
   static const _savedGameKey = 'sudoku.saved_game';
   static const _bestTimesKey = 'sudoku.best_times';
+  static const _dailyAttemptKey = 'sudoku.daily_attempt';
 
   // ==================== ثابت‌ها ====================
   static const Map<Difficulty, int> cluesCount = {
@@ -251,6 +265,17 @@ class HomeController extends GetxController {
         }
       }
 
+      final savedMode = decoded['gameMode'];
+      final restoredMode = GameMode.values.firstWhere(
+        (item) => item.name == savedMode,
+        orElse: () => GameMode.classic,
+      );
+      // چالش روزانه فقط در همان روز معتبر است؛ بازی ذخیره‌شدهٔ روزهای قبل منقضی می‌شود.
+      if (restoredMode == GameMode.daily && decoded['dailyKey'] != _todayKey) {
+        return false;
+      }
+      gameMode.value = restoredMode;
+      isGameOver.value = decoded['isGameOver'] == true;
       final savedElapsed = decoded['elapsedSeconds'];
       final savedAt = decoded['savedAt'];
       var totalElapsed = savedElapsed is num ? savedElapsed.toInt() : 0;
@@ -260,6 +285,9 @@ class HomeController extends GetxController {
         totalElapsed += elapsedWhileClosed.clamp(0, 31536000);
       }
       elapsedSeconds.value = totalElapsed.clamp(0, 31536000);
+      remainingSeconds.value = restoredMode == GameMode.timed
+          ? (timedGameSeconds - elapsedSeconds.value).clamp(0, timedGameSeconds)
+          : timedGameSeconds;
       final helperUses = decoded['currentHelperUses'];
       currentHelperUses.value = helperUses is num
           ? helperUses.toInt().clamp(0, maxHelperUses)
@@ -281,10 +309,110 @@ class HomeController extends GetxController {
   void _startTimer() {
     _gameTimer?.cancel();
     _gameTimer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (!_hasActiveGame || isLoading.value) return;
+      if (!_hasActiveGame || isLoading.value || isGameOver.value) return;
       elapsedSeconds.value++;
+      if (gameMode.value == GameMode.timed) {
+        remainingSeconds.value = (timedGameSeconds - elapsedSeconds.value)
+            .clamp(0, timedGameSeconds);
+        if (remainingSeconds.value == 0) _finishTimedGame();
+      }
       if (elapsedSeconds.value % 5 == 0) _requestSave();
     });
+  }
+
+  bool get hintsEnabled => gameMode.value != GameMode.noHints;
+  bool get isDailyMode => gameMode.value == GameMode.daily;
+
+  /// سطح مؤثر: چالش روزانه همیشه از سطح ثابت استفاده می‌کند.
+  Difficulty get _effectiveDifficulty =>
+      isDailyMode ? dailyDifficulty : difficulty.value;
+
+  /// دانهٔ تصادفی بر اساس تاریخ محلی؛ پازل روزانه در طول یک روز ثابت می‌ماند.
+  int get _dailySeed {
+    final now = DateTime.now();
+    return now.year * 10000 + now.month * 100 + now.day;
+  }
+
+  String get recordKey => '${gameMode.value.name}.${difficulty.value.name}';
+
+  String get modeTitle => switch (gameMode.value) {
+    GameMode.classic => 'کلاسیک',
+    GameMode.timed => 'زمان‌دار (۵ دقیقه)',
+    GameMode.noHints => 'بدون راهنما',
+    GameMode.daily => 'چالش روزانه',
+    GameMode.record => 'رقابت رکوردی',
+  };
+
+  bool get dailyAttemptUsed =>
+      _preferences?.getString(_dailyAttemptKey) == _todayKey;
+  String get _todayKey => DateTime.now().toIso8601String().substring(0, 10);
+
+  Future<void> changeMode(GameMode mode) async {
+    if (mode == gameMode.value) return;
+    if (mode == GameMode.daily && dailyAttemptUsed) {
+      showError('تلاش امروز قبلاً انجام شده است.');
+      return;
+    }
+    gameMode.value = mode;
+    await newGame();
+  }
+
+  void _finishTimedGame() {
+    if (isGameOver.value) return;
+    isGameOver.value = true;
+    _hasActiveGame = false;
+    _stopTimer();
+    _deleteSavedGame();
+    _showGameOverDialog();
+  }
+
+  void _showGameOverDialog() {
+    Get.dialog(
+      Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.timer_off, size: 64, color: Colors.red),
+              const SizedBox(height: 16),
+              const Text(
+                'زمان تمام شد!',
+                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'متأسفانه نتوانستید پازل را در ۵ دقیقه کامل کنید.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 16),
+              ),
+              const SizedBox(height: 24),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  TextButton(
+                    onPressed: () => Get.back(),
+                    child: const Text('بستن'),
+                  ),
+                  ElevatedButton(
+                    onPressed: () {
+                      Get.back();
+                      newGame();
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.red,
+                    ),
+                    child: const Text('بازی جدید'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+      barrierDismissible: false,
+    );
   }
 
   void _stopTimer() {
@@ -317,6 +445,8 @@ class HomeController extends GetxController {
       if (!_hasActiveGame || session != _gameSession) break;
       final data = {
         'difficulty': difficulty.value.name,
+        'gameMode': gameMode.value.name,
+        'isGameOver': isGameOver.value,
         'puzzle': puzzle,
         'solution': _solution,
         'cells': [
@@ -332,6 +462,7 @@ class HomeController extends GetxController {
         ],
         'currentHelperUses': currentHelperUses.value,
         'elapsedSeconds': elapsedSeconds.value,
+        'dailyKey': _todayKey,
         'savedAt': DateTime.now().millisecondsSinceEpoch,
       };
       await _preferences!.setString(_savedGameKey, jsonEncode(data));
@@ -352,7 +483,7 @@ class HomeController extends GetxController {
   }
 
   Future<void> _saveBestTime() async {
-    final key = difficulty.value.name;
+    final key = recordKey;
     final current = elapsedSeconds.value;
     final previous = bestTimes[key];
     if (previous != null && previous <= current) return;
@@ -454,6 +585,7 @@ class HomeController extends GetxController {
   }
 
   void placeMainNumber(int r, int c, int number) {
+    if (isGameOver.value) return;
     if (cells[r][c].isFixed) {
       showError('این خانه قابل تغییر نیست!');
       return;
@@ -491,6 +623,7 @@ class HomeController extends GetxController {
 
   /// افزودن یا حذف یک کاندیدا از خانهٔ انتخاب‌شده.
   void toggleNote(int r, int c, int number) {
+    if (isGameOver.value) return;
     if (cells[r][c].isFixed) return;
     if (cells[r][c].value != 0) {
       showError('ابتدا عدد اصلی خانه را پاک کنید.');
@@ -624,6 +757,7 @@ class HomeController extends GetxController {
 
   /// تابع اصلی برای تنظیم مقدار خانه (مشابه کد اصلی شما)
   void setCellValue(int row, int col) {
+    if (isGameOver.value) return;
     // اگر حالت نمایش اعداد فعال نیست، هیچ‌کاری نکن
     if (!isShow.value) return;
 
@@ -705,6 +839,7 @@ class HomeController extends GetxController {
 
   /// تابع برای حذف عدد از یک خانه (برای دکمه حذف در پیکر)
   void clearCell(int row, int col) {
+    if (isGameOver.value) return;
     if (cells[row][col].isFixed) {
       showError('این خانه قابل تغییر نیست!');
       return;
@@ -773,6 +908,11 @@ class HomeController extends GetxController {
   // ==================== راهنما ====================
 
   void useHelper() {
+    if (isGameOver.value) return;
+    if (!hintsEnabled) {
+      showError('راهنما در این حالت غیرفعال است.');
+      return;
+    }
     if (currentHelperUses.value >= maxHelperUses || _solution == null) {
       if (currentHelperUses.value >= maxHelperUses) {
         showError('دیگر امکان استفاده از راهنما وجود ندارد.');
@@ -829,20 +969,28 @@ class HomeController extends GetxController {
     _hasActiveGame = false;
     _stopTimer();
     elapsedSeconds.value = 0;
+    remainingSeconds.value = timedGameSeconds;
+    isGameOver.value = false;
+    if (gameMode.value == GameMode.daily && _preferences != null) {
+      await _preferences!.setString(_dailyAttemptKey, _todayKey);
+    }
     unawaited(_preferences?.remove(_savedGameKey) ?? Future<bool>.value(false));
     _currentRetryCount = 0;
 
     try {
       await Future.delayed(Duration.zero);
 
-      _solution = _generateSolvedBoard();
-      final clues = cluesCount[difficulty.value]!;
+      // در چالش روزانه، پازل با دانهٔ ثابت تاریخ تولید می‌شود تا برای همه
+      // در یک روز یکسان باشد.
+      final random = isDailyMode ? Random(_dailySeed) : null;
+      _solution = _generateSolvedBoard(random: random);
+      final clues = cluesCount[_effectiveDifficulty]!;
 
       List<List<int>>? generatedPuzzle;
       bool isUnique = false;
 
       while (!isUnique && _currentRetryCount < _maxPuzzleRetries) {
-        generatedPuzzle = generatePuzzle(_solution!, clues);
+        generatedPuzzle = generatePuzzle(_solution!, clues, random: random);
         if (hasUniqueSolution(generatedPuzzle)) {
           isUnique = true;
         } else {
@@ -899,21 +1047,21 @@ class HomeController extends GetxController {
     }
   }
 
-  List<List<int>> _generateSolvedBoard() {
+  List<List<int>> _generateSolvedBoard({Random? random}) {
     List<List<int>> board = List.generate(9, (_) => List.filled(9, 0));
-    _solveSudoku(board);
+    _solveSudoku(board, random);
     return board;
   }
 
-  bool _solveSudoku(List<List<int>> board) {
+  bool _solveSudoku(List<List<int>> board, [Random? random]) {
     for (int row = 0; row < 9; row++) {
       for (int col = 0; col < 9; col++) {
         if (board[row][col] == 0) {
-          List<int> numbers = List.generate(9, (i) => i + 1)..shuffle();
+          List<int> numbers = List.generate(9, (i) => i + 1)..shuffle(random);
           for (int num in numbers) {
             if (_canPlace(board, row, col, num)) {
               board[row][col] = num;
-              if (_solveSudoku(board)) return true;
+              if (_solveSudoku(board, random)) return true;
               board[row][col] = 0;
             }
           }
@@ -924,9 +1072,13 @@ class HomeController extends GetxController {
     return true;
   }
 
-  List<List<int>> generatePuzzle(List<List<int>> solved, int clues) {
+  List<List<int>> generatePuzzle(
+    List<List<int>> solved,
+    int clues, {
+    Random? random,
+  }) {
     final puzzle = solved.map((row) => [...row]).toList();
-    List<int> cells = List.generate(81, (i) => i)..shuffle();
+    List<int> cells = List.generate(81, (i) => i)..shuffle(random);
     int filledCells = 81;
 
     for (int idx in cells) {
@@ -1187,6 +1339,7 @@ class HomeController extends GetxController {
   // ==================== پیام‌ها ====================
 
   void _showMessage(String message, Color color, {int duration = 2}) {
+    if (Get.testMode) return;
     Get.showSnackbar(
       GetSnackBar(
         snackPosition: SnackPosition.BOTTOM,
@@ -1200,6 +1353,7 @@ class HomeController extends GetxController {
   }
 
   void showError(String message) {
+    if (Get.testMode) return;
     Get.showSnackbar(
       GetSnackBar(
         snackPosition: SnackPosition.BOTTOM,

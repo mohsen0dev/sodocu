@@ -256,6 +256,7 @@ class _SudokuBoardState extends State<SudokuBoard> {
                     spacing: 20,
                     children: [
                       _gameInfoWidget(),
+                      _modeWidget(),
                       _difficultyWidget(),
                       _boardWidget(),
                       _numberConstWidget(),
@@ -282,8 +283,12 @@ class _SudokuBoardState extends State<SudokuBoard> {
             Expanded(
               child: _infoCard(
                 icon: Icons.timer_outlined,
-                title: 'زمان بازی',
-                value: ctrl.formatDuration(ctrl.elapsedSeconds.value),
+                title: ctrl.gameMode.value == GameMode.timed
+                    ? 'زمان باقی‌مانده'
+                    : 'زمان بازی',
+                value: ctrl.gameMode.value == GameMode.timed
+                    ? ctrl.formatDuration(ctrl.remainingSeconds.value)
+                    : ctrl.formatDuration(ctrl.elapsedSeconds.value),
                 color: Colors.blue,
               ),
             ),
@@ -292,11 +297,9 @@ class _SudokuBoardState extends State<SudokuBoard> {
               child: _infoCard(
                 icon: Icons.emoji_events_outlined,
                 title: 'بهترین زمان',
-                value: ctrl.bestTimes[ctrl.difficulty.value.name] == null
+                value: ctrl.bestTimes[ctrl.recordKey] == null
                     ? '--:--'
-                    : ctrl.formatDuration(
-                        ctrl.bestTimes[ctrl.difficulty.value.name]!,
-                      ),
+                    : ctrl.formatDuration(ctrl.bestTimes[ctrl.recordKey]!),
                 color: Colors.amber,
               ),
             ),
@@ -342,9 +345,46 @@ class _SudokuBoardState extends State<SudokuBoard> {
     );
   }
 
-  Widget _difficultyWidget() {
+  Widget _modeWidget() {
     return Obx(
-      () => SegmentedButton<Difficulty>(
+      () => DropdownButton<GameMode>(
+        value: ctrl.gameMode.value,
+        isExpanded: true,
+        items: GameMode.values
+            .map(
+              (mode) => DropdownMenuItem(
+                value: mode,
+                // چالش روزانه فقط یک بار در روز قابل شروع است.
+                enabled: mode != GameMode.daily || !ctrl.dailyAttemptUsed,
+                child: Text(_modeText(mode)),
+              ),
+            )
+            .toList(),
+        onChanged: (mode) {
+          if (mode != null) ctrl.changeMode(mode);
+        },
+      ),
+    );
+  }
+
+  String _modeText(GameMode mode) => switch (mode) {
+    GameMode.classic => 'کلاسیک',
+    GameMode.timed => 'زمان‌دار (۵ دقیقه)',
+    GameMode.noHints => 'بدون راهنما',
+    GameMode.daily => 'چالش روزانه',
+    GameMode.record => 'رقابت رکوردی',
+  };
+
+  Widget _difficultyWidget() {
+    return Obx(() {
+      // در چالش روزانه پازل ثابت است؛ سطح را نمی‌توان تغییر داد.
+      if (ctrl.isDailyMode) {
+        return Text(
+          'چالش روزانه — سطح: ${_diffText(HomeController.dailyDifficulty)} (ثابت)',
+          style: const TextStyle(fontSize: 14, color: Colors.grey),
+        );
+      }
+      return SegmentedButton<Difficulty>(
         segments: Difficulty.values.map((d) {
           return ButtonSegment<Difficulty>(value: d, label: Text(_diffText(d)));
         }).toList(),
@@ -355,8 +395,8 @@ class _SudokuBoardState extends State<SudokuBoard> {
             _confirmChangeDifficulty(selected);
           }
         },
-      ),
-    );
+      );
+    });
   }
 
   /// ویجت نمایش اعداد 1 تا 9 با دکمه حذف (عدد 0)
@@ -685,7 +725,9 @@ class _SudokuBoardState extends State<SudokuBoard> {
         children: [
           Obx(
             () => InkWell(
-              onTap: ctrl.currentHelperUses.value >= ctrl.maxHelperUses
+              onTap:
+                  !ctrl.hintsEnabled ||
+                      ctrl.currentHelperUses.value >= ctrl.maxHelperUses
                   ? null
                   : () {
                       ctrl.useHelper();
@@ -694,7 +736,9 @@ class _SudokuBoardState extends State<SudokuBoard> {
                 mainAxisSize: MainAxisSize.min,
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  ctrl.currentHelperUses.value != ctrl.maxHelperUses
+                  !ctrl.hintsEnabled
+                      ? const Text('راهنما در این حالت غیرفعال است')
+                      : ctrl.currentHelperUses.value != ctrl.maxHelperUses
                       ? Row(
                           children: [
                             Text('شما  '),
