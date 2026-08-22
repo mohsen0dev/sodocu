@@ -916,123 +916,207 @@ class _SudokuBoardState extends State<SudokuBoard> {
 
   Widget _menuWidget() {
     return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 460),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _helperCard(),
+            const SizedBox(height: 12),
+            _settingsCard(),
+            const SizedBox(height: 12),
+            _cleanNotesButton(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _helperCard() {
+    return Obx(() {
+      final theme = Theme.of(context);
+      final disabled = !ctrl.hintsEnabled;
+      final usedUp = ctrl.currentHelperUses.value >= ctrl.maxHelperUses;
+      final remaining = ctrl.maxHelperUses - ctrl.currentHelperUses.value;
+      final muted = disabled || usedUp;
+
+      return Material(
+        color: theme.colorScheme.surfaceContainerHighest.withValues(
+          alpha: 0.5,
+        ),
+        borderRadius: BorderRadius.circular(14),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(14),
+          onTap: muted ? null : ctrl.useHelper,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            child: Row(
+              children: [
+                Icon(
+                  muted ? Icons.lightbulb_outline : Icons.lightbulb,
+                  color: muted
+                      ? theme.colorScheme.onSurfaceVariant
+                      : Colors.amber,
+                  size: 26,
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'راهنما',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 15,
+                          color: muted ? theme.colorScheme.onSurfaceVariant : null,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        disabled
+                            ? 'در این حالت غیرفعال است'
+                            : usedUp
+                            ? 'از تمام کمک‌ها استفاده کردید'
+                            : 'یک خانهٔ خالی را برایتان پر می‌کند',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (!muted)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.amber.withValues(alpha: 0.18),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      '$remaining',
+                      style: const TextStyle(
+                        color: Colors.amber,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      );
+    });
+  }
+
+  Widget _settingsCard() {
+    final theme = Theme.of(context);
+    return Card(
+      margin: EdgeInsets.zero,
+      elevation: 0,
+      color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: BorderSide(color: theme.colorScheme.outlineVariant),
+      ),
       child: Column(
         children: [
           Obx(
-            () => InkWell(
-              onTap:
-                  !ctrl.hintsEnabled ||
-                      ctrl.currentHelperUses.value >= ctrl.maxHelperUses
-                  ? null
-                  : () {
-                      ctrl.useHelper();
-                    },
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  !ctrl.hintsEnabled
-                      ? const Text('راهنما در این حالت غیرفعال است')
-                      : ctrl.currentHelperUses.value != ctrl.maxHelperUses
-                      ? Row(
-                          children: [
-                            Text('شما  '),
-                            Text(
-                              '${ctrl.maxHelperUses - ctrl.currentHelperUses.value}',
-                              style: TextStyle(
-                                color: Colors.blue,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 16,
-                                decoration: TextDecoration.underline,
-                              ),
-                            ),
-                            Text('  کمک در اختیار دارید'),
-                          ],
-                        )
-                      : Text('از تمام کمک ها استفاده کردید'),
-                  Icon(
-                    size: 28,
-                    ctrl.currentHelperUses.value >= ctrl.maxHelperUses
-                        ? Icons.lightbulb_outline
-                        : Icons.lightbulb,
-                    color: ctrl.currentHelperUses.value >= ctrl.maxHelperUses
-                        ? Colors.grey.shade400
-                        : Colors.blue,
-                  ),
-                ],
-              ),
+            () => _settingTile(
+              icon: Icons.bolt_outlined,
+              title: 'اعتبارسنجی فوری',
+              subtitle: 'اعداد نادرست را بلافاصله قرمز نشان می‌دهد',
+              value: ctrl.isActive.value,
+              onChanged: (v) => ctrl.isActive.value = v,
             ),
           ),
-          const SizedBox(height: 12),
+          _settingsDivider(theme),
           Obx(
-            () => Container(
-              width: 300,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.grey.shade300),
-              ),
-              child: SwitchListTile(
-                title: const Text('اعتبارسنجی فوری'),
-                value: ctrl.isActive.value,
-                onChanged: (v) => ctrl.isActive.value = v,
-              ),
+            () => _settingTile(
+              icon: Icons.keyboard_alt_outlined,
+              title: 'نمایش اعداد ثابت',
+              subtitle: 'نوار اعداد و ورود سریع در پایین صفحه',
+              value: ctrl.isShow.value,
+              onChanged: (v) {
+                ctrl.isShow.value = v;
+                ctrl.recalculateNumberUsage();
+                ctrl.selectedNumber.value = 0;
+              },
             ),
           ),
-          const SizedBox(height: 12),
+          _settingsDivider(theme),
           Obx(
-            () => Container(
-              width: 300,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.grey.shade300),
-              ),
-              child: SwitchListTile(
-                title: const Text('نمایش اعداد ثابت'),
-                value: ctrl.isShow.value,
-                onChanged: (v) {
-                  ctrl.isShow.value = v;
-                  ctrl.recalculateNumberUsage();
-                  ctrl.selectedNumber.value = 0;
-                },
-              ),
+            () => _settingTile(
+              icon: Icons.edit_note,
+              title: 'حالت یادداشت',
+              subtitle: 'یادداشت کاندیداها در خانه‌ها',
+              value: ctrl.noteMode.value,
+              onChanged: (v) => ctrl.toggleNoteMode(),
             ),
           ),
-          const SizedBox(height: 12),
-          Obx(
-            () => Container(
-              width: 300,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.grey.shade300),
-              ),
-              child: SwitchListTile(
-                title: const Text('حالت یادداشت'),
-                value: ctrl.noteMode.value,
-                onChanged: (v) => ctrl.toggleNoteMode(),
-              ),
-            ),
-          ),
-          const SizedBox(height: 12),
-          Obx(() {
-            final invalidCount = ctrl.invalidNotesCount();
-            return SizedBox(
-              width: 300,
-              child: OutlinedButton.icon(
-                onPressed: invalidCount == 0
-                    ? null
-                    : () => _confirmCleanInvalidNotes(invalidCount),
-                icon: const Icon(Icons.cleaning_services_outlined),
-                label: Text(
-                  invalidCount == 0
-                      ? 'یادداشت نامعتبر وجود ندارد'
-                      : 'پاک‌سازی یادداشت‌های نامعتبر ($invalidCount)',
-                ),
-              ),
-            );
-          }),
         ],
       ),
     );
+  }
+
+  Widget _settingsDivider(ThemeData theme) {
+    return Divider(
+      height: 1,
+      indent: 16,
+      endIndent: 16,
+      color: theme.colorScheme.outlineVariant,
+    );
+  }
+
+  Widget _settingTile({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required bool value,
+    required ValueChanged<bool> onChanged,
+  }) {
+    final theme = Theme.of(context);
+    return SwitchListTile(
+      secondary: Icon(icon, color: theme.colorScheme.primary, size: 24),
+      title: Text(
+        title,
+        style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+      ),
+      subtitle: Text(
+        subtitle,
+        style: TextStyle(
+          fontSize: 12,
+          color: theme.colorScheme.onSurfaceVariant,
+        ),
+      ),
+      value: value,
+      onChanged: onChanged,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+    );
+  }
+
+  Widget _cleanNotesButton() {
+    return Obx(() {
+      final invalidCount = ctrl.invalidNotesCount();
+      return OutlinedButton.icon(
+        onPressed: invalidCount == 0
+            ? null
+            : () => _confirmCleanInvalidNotes(invalidCount),
+        icon: const Icon(Icons.cleaning_services_outlined),
+        label: Text(
+          invalidCount == 0
+              ? 'یادداشت نامعتبر وجود ندارد'
+              : 'پاک‌سازی یادداشت‌های نامعتبر ($invalidCount)',
+        ),
+        style: OutlinedButton.styleFrom(
+          padding: const EdgeInsets.symmetric(vertical: 14),
+        ),
+      );
+    });
   }
 
   Widget _numberPickerWidget() {
