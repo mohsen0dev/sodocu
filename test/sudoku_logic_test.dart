@@ -23,6 +23,23 @@ int countClues(List<List<int>> board) {
   return board.fold(0, (sum, row) => sum + row.where((v) => v != 0).length);
 }
 
+/// یک خانهٔ خالی و یک عدد «اشتباه اما بدون تضاد» برای آن پیدا می‌کند.
+({int row, int col, int wrong}) findWrongMove(HomeController controller) {
+  for (var r = 0; r < 9; r++) {
+    for (var c = 0; c < 9; c++) {
+      if (controller.cells[r][c].value != 0 || controller.cells[r][c].isFixed) {
+        continue;
+      }
+      for (final n in controller.allowedNumbers(r, c)) {
+        if (!controller.isCorrect(r, c, n)) {
+          return (row: r, col: c, wrong: n);
+        }
+      }
+    }
+  }
+  throw StateError('خانهٔ خالی با کاندیدای اشتباه پیدا نشد');
+}
+
 void main() {
   group('boxIndex', () {
     test('خانه را به ناحیهٔ ۳×۳ درست نگاشت می‌کند', () {
@@ -280,6 +297,108 @@ void main() {
 
       expect(clueCount, lessThanOrEqualTo(expected));
       expect(clueCount, greaterThanOrEqualTo(expected - 5));
+    });
+  });
+
+  group('رکوردها', () {
+    late HomeController controller;
+
+    setUp(() {
+      Get.testMode = true;
+      controller = HomeController();
+      Get.put(controller);
+    });
+
+    tearDown(() {
+      Get.reset();
+    });
+
+    test('bestTimeFor رکورد حالت و سطح را برمی‌گرداند', () {
+      controller.bestTimes['classic.easy'] = 65;
+
+      expect(controller.bestTimeFor(GameMode.classic, Difficulty.easy), 65);
+      expect(controller.bestTimeFor(GameMode.classic, Difficulty.hard), isNull);
+      expect(controller.bestTimeFor(GameMode.timed, Difficulty.easy), isNull);
+    });
+
+    test('clearBestTime فقط رکورد خواسته‌شده را حذف می‌کند', () async {
+      controller.bestTimes['classic.easy'] = 65;
+      controller.bestTimes['classic.medium'] = 120;
+
+      await controller.clearBestTime(GameMode.classic, Difficulty.easy);
+
+      expect(controller.bestTimeFor(GameMode.classic, Difficulty.easy), isNull);
+      expect(controller.bestTimeFor(GameMode.classic, Difficulty.medium), 120);
+    });
+
+    test('clearAllBestTimes همه رکوردها را پاک می‌کند', () async {
+      controller.bestTimes['classic.easy'] = 65;
+      controller.bestTimes['timed.hard'] = 180;
+
+      await controller.clearAllBestTimes();
+
+      expect(controller.bestTimes, isEmpty);
+    });
+  });
+
+  group('حالت رقابت رکوردی', () {
+    late HomeController controller;
+
+    setUp(() {
+      Get.testMode = true;
+      controller = HomeController();
+      Get.put(controller);
+    });
+
+    tearDown(() {
+      controller.onClose();
+      Get.reset();
+    });
+
+    test('قرار دادن عدد اشتباه، شمارندهٔ خطا را افزایش می‌دهد', () async {
+      controller.gameMode.value = GameMode.record;
+      await controller.newGame();
+
+      final move = findWrongMove(controller);
+      controller.placeMainNumber(move.row, move.col, move.wrong);
+
+      expect(controller.mistakes.value, 1);
+      expect(controller.isGameOver.value, isFalse);
+    });
+
+    test('سه اشتباه باعث باخت می‌شود', () async {
+      controller.gameMode.value = GameMode.record;
+      await controller.newGame();
+
+      for (var i = 0; i < 3; i++) {
+        final move = findWrongMove(controller);
+        controller.placeMainNumber(move.row, move.col, move.wrong);
+      }
+
+      expect(controller.mistakes.value, 3);
+      expect(controller.isGameOver.value, isTrue);
+    });
+
+    test('راهنما در حالت رقابت رکوردی غیرفعال است', () {
+      controller.gameMode.value = GameMode.record;
+      expect(controller.hintsEnabled, isFalse);
+
+      controller.gameMode.value = GameMode.classic;
+      expect(controller.hintsEnabled, isTrue);
+
+      controller.gameMode.value = GameMode.noHints;
+      expect(controller.hintsEnabled, isFalse);
+    });
+
+    test('در حالت‌های دیگر اشتباه شمارش نمی‌شود', () async {
+      controller.gameMode.value = GameMode.classic;
+      await controller.newGame();
+
+      final move = findWrongMove(controller);
+      controller.placeMainNumber(move.row, move.col, move.wrong);
+
+      expect(controller.mistakes.value, 0);
+      expect(controller.isGameOver.value, isFalse);
     });
   });
 }

@@ -5,6 +5,7 @@ import 'dart:math' show Random;
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:sodocu/utils/jalali.dart';
 
 /// سطح دشواری بازی سودوکو
 enum Difficulty { easy, medium, hard }
@@ -42,6 +43,13 @@ class HomeController extends GetxController {
 
   final int maxHelperUses = 3;
   var currentHelperUses = 0.obs;
+
+  /// حداکثر خطاهای مجاز در حالت رقابت رکوردی (۳ خطا = باخت).
+  static const int maxMistakes = 3;
+
+  /// تعداد خطاهای ثبت‌شده در حالت رقابت رکوردی.
+  final RxInt mistakes = 0.obs;
+
   RxBool noteMode = false.obs;
   RxBool isActive = false.obs;
 
@@ -292,6 +300,10 @@ class HomeController extends GetxController {
       currentHelperUses.value = helperUses is num
           ? helperUses.toInt().clamp(0, maxHelperUses)
           : 0;
+      final savedMistakes = decoded['mistakes'];
+      mistakes.value = savedMistakes is num
+          ? savedMistakes.toInt().clamp(0, maxMistakes)
+          : 0;
       selectedNumber.value = 0;
       _undoStack.clear();
       _redoStack.clear();
@@ -320,22 +332,27 @@ class HomeController extends GetxController {
     });
   }
 
-  bool get hintsEnabled => gameMode.value != GameMode.noHints;
+  /// راهنما در حالت «بدون راهنما» و «رقابت رکوردی» غیرفعال است
+  /// تا رقابت رکوردی بدون هیچ کمکی قابل اعتماد بماند.
+  bool get hintsEnabled =>
+      gameMode.value != GameMode.noHints && gameMode.value != GameMode.record;
   bool get isDailyMode => gameMode.value == GameMode.daily;
+  bool get isRecordMode => gameMode.value == GameMode.record;
 
   /// سطح مؤثر: چالش روزانه همیشه از سطح ثابت استفاده می‌کند.
   Difficulty get _effectiveDifficulty =>
       isDailyMode ? dailyDifficulty : difficulty.value;
 
-  /// دانهٔ تصادفی بر اساس تاریخ محلی؛ پازل روزانه در طول یک روز ثابت می‌ماند.
+  /// دانهٔ تصادفی بر اساس تاریخ جلالی؛ پازل روزانه در طول یک روز ثابت می‌ماند
+  /// و با آغاز روز جدید (نیمه‌شب) تغییر می‌کند.
   int get _dailySeed {
-    final now = DateTime.now();
-    return now.year * 10000 + now.month * 100 + now.day;
+    final j = jalaliFromGregorian(DateTime.now());
+    return j.year * 10000 + j.month * 100 + j.day;
   }
 
   String get recordKey => '${gameMode.value.name}.${difficulty.value.name}';
 
-  String get modeTitle => switch (gameMode.value) {
+  static String gameModeLabel(GameMode mode) => switch (mode) {
     GameMode.classic => 'کلاسیک',
     GameMode.timed => 'زمان‌دار (۵ دقیقه)',
     GameMode.noHints => 'بدون راهنما',
@@ -343,9 +360,15 @@ class HomeController extends GetxController {
     GameMode.record => 'رقابت رکوردی',
   };
 
+  String get modeTitle => gameModeLabel(gameMode.value);
+
+  /// برچسب تاریخ جلالی امروز برای نمایش در چالش روزانه،
+  /// مثلاً «پنجشنبه ۲۹ مرداد ۱۴۰۵».
+  String get dailyDateLabel => formatJalaliFull(DateTime.now());
+
   bool get dailyAttemptUsed =>
       _preferences?.getString(_dailyAttemptKey) == _todayKey;
-  String get _todayKey => DateTime.now().toIso8601String().substring(0, 10);
+  String get _todayKey => jalaliDateKey(DateTime.now());
 
   Future<void> changeMode(GameMode mode) async {
     if (mode == gameMode.value) return;
@@ -415,6 +438,85 @@ class HomeController extends GetxController {
     );
   }
 
+  /// در حالت رقابت رکوردی، قراردادن عددی که با جواب نهایی نمی‌خواند
+  /// یک خطا محسوب می‌شود؛ با رسیدن به سقف خطا، بازی با باخت تمام می‌شود.
+  void _handleRecordMistake(int row, int col, int number) {
+    if (!isRecordMode) return;
+    if (_solution == null || number == _solution![row][col]) return;
+    mistakes.value++;
+    if (mistakes.value >= maxMistakes) {
+      _finishRecordGameByMistakes();
+    } else {
+      showError('اشتباه! ${mistakes.value} از $maxMistakes خطا');
+    }
+  }
+
+  void _finishRecordGameByMistakes() {
+    if (isGameOver.value) return;
+    isGameOver.value = true;
+    _hasActiveGame = false;
+    _stopTimer();
+    _deleteSavedGame();
+    _showMistakeGameOverDialog();
+  }
+
+  void _showMistakeGameOverDialog() {
+    if (Get.testMode) return;
+    Get.dialog(
+      Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.heart_broken, size: 64, color: Colors.red),
+              const SizedBox(height: 16),
+              const Text(
+                'باخت!',
+                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'با $maxMistakes اشتباه بازی را باختید.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 16),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'در رقابت رکوردی فقط $maxMistakes خطا مجاز است؛ '
+                'برای ثبت بهترین زمان باید پیش از خطای سوم پازل را کامل کنید.',
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 14, color: Colors.grey),
+              ),
+              const SizedBox(height: 24),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  TextButton(
+                    onPressed: () => Get.back(),
+                    child: const Text('بستن'),
+                  ),
+                  ElevatedButton(
+                    onPressed: () {
+                      Get.back();
+                      newGame();
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.red,
+                    ),
+                    child: const Text('تلاش دوباره'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+      barrierDismissible: false,
+    );
+  }
+
   void _stopTimer() {
     _gameTimer?.cancel();
     _gameTimer = null;
@@ -461,6 +563,7 @@ class HomeController extends GetxController {
             ],
         ],
         'currentHelperUses': currentHelperUses.value,
+        'mistakes': mistakes.value,
         'elapsedSeconds': elapsedSeconds.value,
         'dailyKey': _todayKey,
         'savedAt': DateTime.now().millisecondsSinceEpoch,
@@ -489,7 +592,33 @@ class HomeController extends GetxController {
     if (previous != null && previous <= current) return;
     bestTimes[key] = current;
     bestTimes.refresh();
+    await _persistBestTimes();
+  }
+
+  Future<void> _persistBestTimes() async {
     await _preferences?.setString(_bestTimesKey, jsonEncode(bestTimes));
+  }
+
+  /// بهترین زمان ثبت‌شده برای یک حالت و سطح، یا null اگر رکوردی نیست.
+  int? bestTimeFor(GameMode mode, Difficulty diff) {
+    return bestTimes['${mode.name}.${diff.name}'];
+  }
+
+  /// حذف رکورد یک حالت و سطح مشخص.
+  Future<void> clearBestTime(GameMode mode, Difficulty diff) async {
+    final key = '${mode.name}.${diff.name}';
+    if (!bestTimes.containsKey(key)) return;
+    bestTimes.remove(key);
+    bestTimes.refresh();
+    await _persistBestTimes();
+  }
+
+  /// پاک کردن همهٔ رکوردهای محلی.
+  Future<void> clearAllBestTimes() async {
+    if (bestTimes.isEmpty) return;
+    bestTimes.clear();
+    bestTimes.refresh();
+    await _persistBestTimes();
   }
 
   String formatDuration(int seconds) {
@@ -615,6 +744,7 @@ class HomeController extends GetxController {
     cells.refresh();
     _requestSave();
     _afterNumberPlaced(r, c, number);
+    _handleRecordMistake(r, c, number);
 
     if (isSolved()) {
       _completeGame();
@@ -830,6 +960,7 @@ class HomeController extends GetxController {
     cells.refresh();
     _requestSave();
     _afterNumberPlaced(row, col, newNumber);
+    _handleRecordMistake(row, col, newNumber);
 
     // بررسی برنده شدن
     if (isSolved()) {
@@ -1006,6 +1137,7 @@ class HomeController extends GetxController {
 
       puzzle = generatedPuzzle;
       currentHelperUses.value = 0;
+      mistakes.value = 0;
       selectedNumber.value = 0;
       celebratingNumber.value = null;
       celebratingUnits.clear();
@@ -1203,7 +1335,7 @@ class HomeController extends GetxController {
     if (cells[row][col].isFixed) {
       return Colors.grey.shade400;
     }
-    if (!isActive.value) {
+    if (!isActive.value && !isRecordMode) {
       return Colors.blue;
     }
     return isCorrect(row, col, value) ? Colors.blue : Colors.red;

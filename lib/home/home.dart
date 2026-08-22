@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:sodocu/abute/abute_page.dart';
 import 'home_controller.dart';
+import 'records_page.dart';
 
 class SudokuBoard extends StatefulWidget {
   const SudokuBoard({super.key});
@@ -196,6 +197,11 @@ class _SudokuBoardState extends State<SudokuBoard> {
         centerTitle: true,
         elevation: 0,
         actions: [
+          IconButton(
+            tooltip: 'رکوردها',
+            onPressed: () => Get.to(const RecordsPage()),
+            icon: const Icon(Icons.emoji_events_outlined),
+          ),
           Obx(
             () => IconButton(
               onPressed: ctrl.canUndo.value ? ctrl.undo : null,
@@ -293,6 +299,20 @@ class _SudokuBoardState extends State<SudokuBoard> {
               ),
             ),
             const SizedBox(width: 12),
+            if (ctrl.isRecordMode) ...[
+              Expanded(
+                child: _infoCard(
+                  icon: Icons.error_outline,
+                  title: 'خطاهای باقی‌مانده',
+                  value:
+                      '${HomeController.maxMistakes - ctrl.mistakes.value} از ${HomeController.maxMistakes}',
+                  color: ctrl.mistakes.value >= HomeController.maxMistakes - 1
+                      ? Colors.red
+                      : Colors.deepOrange,
+                ),
+              ),
+              const SizedBox(width: 12),
+            ],
             Expanded(
               child: _infoCard(
                 icon: Icons.emoji_events_outlined,
@@ -367,21 +387,39 @@ class _SudokuBoardState extends State<SudokuBoard> {
     );
   }
 
-  String _modeText(GameMode mode) => switch (mode) {
-    GameMode.classic => 'کلاسیک',
-    GameMode.timed => 'زمان‌دار (۵ دقیقه)',
-    GameMode.noHints => 'بدون راهنما',
-    GameMode.daily => 'چالش روزانه',
-    GameMode.record => 'رقابت رکوردی',
-  };
+  String _modeText(GameMode mode) => HomeController.gameModeLabel(mode);
 
   Widget _difficultyWidget() {
     return Obx(() {
       // در چالش روزانه پازل ثابت است؛ سطح را نمی‌توان تغییر داد.
       if (ctrl.isDailyMode) {
-        return Text(
-          'چالش روزانه — سطح: ${_diffText(HomeController.dailyDifficulty)} (ثابت)',
-          style: const TextStyle(fontSize: 14, color: Colors.grey),
+        return Column(
+          children: [
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.calendar_today_outlined,
+                  size: 16,
+                  color: Colors.teal,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  ctrl.dailyDateLabel,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.teal,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'سطح: ${_diffText(HomeController.dailyDifficulty)} (ثابت) — یک تلاش در روز',
+              style: const TextStyle(fontSize: 13, color: Colors.grey),
+            ),
+          ],
         );
       }
       return SegmentedButton<Difficulty>(

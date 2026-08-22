@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get/get.dart';
 import 'package:sodocu/home/home_controller.dart';
+import 'package:sodocu/home/records_page.dart';
 import 'package:sodocu/main.dart';
 
 void main() {
@@ -44,6 +45,51 @@ void main() {
 
     Get.closeAllSnackbars();
     await tester.pumpAndSettle();
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpAndSettle();
+    Get.reset();
+  });
+
+  testWidgets('صفحه رکوردها رکوردها را نمایش می‌دهد و امکان حذف دارد', (
+    WidgetTester tester,
+  ) async {
+    Get.testMode = true;
+    final controller = HomeController();
+    Get.put(controller);
+    controller.bestTimes.assignAll({
+      'classic.easy': 65,
+      'classic.medium': 120,
+      'timed.easy': 300,
+    });
+    controller.bestTimes.refresh();
+
+    await tester.pumpWidget(const GetMaterialApp(home: RecordsPage()));
+    await tester.pump();
+
+    // نمایش زمان‌ها با فرمت دقیقه:ثانیه
+    expect(find.text('01:05'), findsOneWidget);
+    expect(find.text('02:00'), findsOneWidget);
+    expect(find.text('05:00'), findsOneWidget);
+
+    // حذف رکورد کلاسیک/آسان با تأیید در دیالوگ
+    await tester.tap(find.byKey(const ValueKey('delete-classic-easy')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('حذف'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('01:05'), findsNothing);
+    expect(controller.bestTimeFor(GameMode.classic, Difficulty.easy), isNull);
+    expect(controller.bestTimeFor(GameMode.classic, Difficulty.medium), 120);
+
+    // پاک کردن همهٔ رکوردها
+    await tester.tap(find.byKey(const ValueKey('reset-all')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('پاک کردن'));
+    await tester.pumpAndSettle();
+
+    expect(controller.bestTimes, isEmpty);
+    expect(find.text('هنوز رکوردی ثبت نشده است'), findsOneWidget);
+
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pumpAndSettle();
     Get.reset();
