@@ -50,6 +50,13 @@ class HomeController extends GetxController {
   /// تعداد خطاهای ثبت‌شده در حالت رقابت رکوردی.
   final RxInt mistakes = 0.obs;
 
+  /// خانه‌ای که آخرین خطای رکوردی در آن رخ داده (برای انیمیشن لرزش).
+  int _mistakeRow = -1;
+  int _mistakeCol = -1;
+
+  /// نشانهٔ افزایشی برای راه‌اندازی مجدد انیمیشن خطا.
+  final RxInt mistakeFlashToken = 0.obs;
+
   RxBool noteMode = false.obs;
   RxBool isActive = false.obs;
 
@@ -70,6 +77,11 @@ class HomeController extends GetxController {
 
   /// بهترین رکورد محلی بر اساس حالت و سطح دشواری.
   final RxMap<String, int> bestTimes = <String, int>{}.obs;
+
+  /// آمار کلی برای داشبورد رکوردها.
+  final RxInt gamesCompleted = 0.obs;
+  final RxInt totalCompletedSeconds = 0.obs;
+  final RxInt bestStreak = 0.obs;
 
   Rx<Difficulty> difficulty = Difficulty.easy.obs;
 
@@ -115,9 +127,15 @@ class HomeController extends GetxController {
   bool _saveQueued = false;
   int _gameSession = 0;
 
+  /// استریک فعلی چالش روزانه و آخرین روزی که تکمیل شده است.
+  int _currentStreak = 0;
+  String? _lastDailyCompletedKey;
+
   static const _savedGameKey = 'sudoku.saved_game';
   static const _bestTimesKey = 'sudoku.best_times';
   static const _dailyAttemptKey = 'sudoku.daily_attempt';
+  static const _statsKey = 'sudoku.stats';
+  static const _onboardingKey = 'sudoku.onboarding_seen';
 
   // ==================== ثابت‌ها ====================
   static const Map<Difficulty, int> cluesCount = {
@@ -148,6 +166,7 @@ class HomeController extends GetxController {
         const Duration(seconds: 1),
       );
       _loadBestTimes();
+      _loadStats();
       final savedGame = _preferences!.getString(_savedGameKey);
       if (savedGame != null && _restoreSavedGame(savedGame) && !isSolved()) {
         _startTimer();
@@ -191,6 +210,43 @@ class HomeController extends GetxController {
     } catch (_) {
       bestTimes.clear();
     }
+  }
+
+  int? _asInt(dynamic value) => value is num ? value.toInt() : null;
+
+  void _loadStats() {
+    final raw = _preferences?.getString(_statsKey);
+    if (raw == null) return;
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map) return;
+      gamesCompleted.value = _asInt(decoded['gamesCompleted']) ?? 0;
+      totalCompletedSeconds.value =
+          _asInt(decoded['totalCompletedSeconds']) ?? 0;
+      bestStreak.value = _asInt(decoded['bestStreak']) ?? 0;
+      _currentStreak = _asInt(decoded['currentStreak']) ?? 0;
+      final last = decoded['lastDailyCompletedKey'];
+      _lastDailyCompletedKey = last is String ? last : null;
+    } catch (_) {
+      gamesCompleted.value = 0;
+      totalCompletedSeconds.value = 0;
+      bestStreak.value = 0;
+      _currentStreak = 0;
+      _lastDailyCompletedKey = null;
+    }
+  }
+
+  Future<void> _persistStats() async {
+    await _preferences?.setString(
+      _statsKey,
+      jsonEncode({
+        'gamesCompleted': gamesCompleted.value,
+        'totalCompletedSeconds': totalCompletedSeconds.value,
+        'bestStreak': bestStreak.value,
+        'currentStreak': _currentStreak,
+        'lastDailyCompletedKey': _lastDailyCompletedKey,
+      }),
+    );
   }
 
   List<List<int>>? _parseBoard(dynamic raw) {
@@ -339,6 +395,24 @@ class HomeController extends GetxController {
   bool get isDailyMode => gameMode.value == GameMode.daily;
   bool get isRecordMode => gameMode.value == GameMode.record;
 
+  /// آیا خانهٔ [row],[col] همان خانهٔ آخرین خطای رکوردی است؟
+  bool isMistakeCell(int row, int col) =>
+      _mistakeRow == row && _mistakeCol == col;
+
+  /// آیا پیکر عدد فقط کاندیداهای معتبر را فعال نشان می‌دهد؟
+  /// در «رقابت رکوردی» و «بدون راهنما» خاموش است تا راهنمای مخفی حذف شود.
+  bool get filterPickerCandidates =>
+      gameMode.value != GameMode.record && gameMode.value != GameMode.noHints;
+
+  /// آیا عدد [number] در پیکر خانهٔ [row],[col] قابل انتخاب است؟
+  bool isPickerNumberEnabled(int row, int col, int number) {
+    final cell = cells[row][col];
+    if (cell.value != 0) return false;
+    if (!filterPickerCandidates) return true;
+    if (noteMode.value && cell.notes.contains(number)) return true;
+    return allowedNumbers(row, col).contains(number);
+  }
+
   /// سطح مؤثر: چالش روزانه همیشه از سطح ثابت استفاده می‌کند.
   Difficulty get _effectiveDifficulty =>
       isDailyMode ? dailyDifficulty : difficulty.value;
@@ -360,6 +434,31 @@ class HomeController extends GetxController {
     GameMode.record => 'رقابت رکوردی',
   };
 
+  /// توضیح کوتاه قانون اصلی هر حالت برای نمایش در انتخاب‌گر حالت.
+  static String gameModeDescription(GameMode mode) => switch (mode) {
+    GameMode.classic => 'بدون محدودیت؛ برای تمرین و حل آسوده',
+    GameMode.timed => 'پازل را در ۵ دقیقه کامل کنید',
+    GameMode.noHints => 'بدون راهنما و بدون فیلتر کاندیداها',
+    GameMode.daily => 'یک پازل ثابت در روز؛ فقط یک تلاش',
+    GameMode.record => 'رقابت با بهترین زمان؛ حداکثر ۳ خطا',
+  };
+
+  static IconData gameModeIcon(GameMode mode) => switch (mode) {
+    GameMode.classic => Icons.gamepad_outlined,
+    GameMode.timed => Icons.timer_outlined,
+    GameMode.noHints => Icons.lightbulb_outline,
+    GameMode.daily => Icons.calendar_today_outlined,
+    GameMode.record => Icons.emoji_events_outlined,
+  };
+
+  static Color gameModeColor(GameMode mode) => switch (mode) {
+    GameMode.classic => Colors.blue,
+    GameMode.timed => Colors.deepOrange,
+    GameMode.noHints => Colors.purple,
+    GameMode.daily => Colors.teal,
+    GameMode.record => Colors.amber,
+  };
+
   String get modeTitle => gameModeLabel(gameMode.value);
 
   /// برچسب تاریخ جلالی امروز برای نمایش در چالش روزانه،
@@ -369,6 +468,13 @@ class HomeController extends GetxController {
   bool get dailyAttemptUsed =>
       _preferences?.getString(_dailyAttemptKey) == _todayKey;
   String get _todayKey => jalaliDateKey(DateTime.now());
+
+  /// آیا آشناسازی اولیه قبلاً نمایش داده شده است؟
+  bool get onboardingSeen => _preferences?.getBool(_onboardingKey) ?? false;
+
+  Future<void> markOnboardingSeen() async {
+    await _preferences?.setBool(_onboardingKey, true);
+  }
 
   Future<void> changeMode(GameMode mode) async {
     if (mode == gameMode.value) return;
@@ -440,14 +546,18 @@ class HomeController extends GetxController {
 
   /// در حالت رقابت رکوردی، قراردادن عددی که با جواب نهایی نمی‌خواند
   /// یک خطا محسوب می‌شود؛ با رسیدن به سقف خطا، بازی با باخت تمام می‌شود.
+  ///
+  /// بازخورد خطا با لرزش خانه و پرش شمارنده انجام می‌شود، نه Snackbar،
+  /// تا پیام‌های پشت‌سرهم روی هم جمع نشوند.
   void _handleRecordMistake(int row, int col, int number) {
     if (!isRecordMode) return;
     if (_solution == null || number == _solution![row][col]) return;
     mistakes.value++;
+    _mistakeRow = row;
+    _mistakeCol = col;
+    mistakeFlashToken.value++;
     if (mistakes.value >= maxMistakes) {
       _finishRecordGameByMistakes();
-    } else {
-      showError('اشتباه! ${mistakes.value} از $maxMistakes خطا');
     }
   }
 
@@ -585,12 +695,16 @@ class HomeController extends GetxController {
     unawaited(_preferences?.remove(_savedGameKey) ?? Future<bool>.value(false));
   }
 
+  /// آیا زمان [seconds] از رکورد فعلی این حالت/سطح بهتر (کمتر) است؟
+  bool _isNewRecord(int seconds) {
+    final previous = bestTimes[recordKey];
+    return previous == null || seconds < previous;
+  }
+
   Future<void> _saveBestTime() async {
-    final key = recordKey;
     final current = elapsedSeconds.value;
-    final previous = bestTimes[key];
-    if (previous != null && previous <= current) return;
-    bestTimes[key] = current;
+    if (!_isNewRecord(current)) return;
+    bestTimes[recordKey] = current;
     bestTimes.refresh();
     await _persistBestTimes();
   }
@@ -619,6 +733,58 @@ class HomeController extends GetxController {
     bestTimes.clear();
     bestTimes.refresh();
     await _persistBestTimes();
+  }
+
+  // ==================== آمار بازی‌ها ====================
+
+  /// پس از هر تکمیل موفق بازی، آمار کلی به‌روزرسانی و ذخیره می‌شود.
+  void _recordGameCompletion() {
+    gamesCompleted.value++;
+    totalCompletedSeconds.value += elapsedSeconds.value;
+    if (isDailyMode) _recordDailyCompletion();
+    unawaited(_persistStats());
+  }
+
+  void _recordDailyCompletion() {
+    final today = _todayKey;
+    final yesterday = jalaliDateKey(
+      DateTime.now().subtract(const Duration(days: 1)),
+    );
+    _currentStreak = nextDailyStreak(
+      todayKey: today,
+      yesterdayKey: yesterday,
+      lastCompletedKey: _lastDailyCompletedKey,
+      currentStreak: _currentStreak,
+    );
+    _lastDailyCompletedKey = today;
+    if (_currentStreak > bestStreak.value) bestStreak.value = _currentStreak;
+  }
+
+  /// تعریف استریک: تعداد روزهای متوالی که چالش روزانه تکمیل شده است.
+  /// جدا نگه داشته شده تا تغییر تعریف بدون لمس بقیهٔ کد ممکن باشد.
+  static int nextDailyStreak({
+    required String todayKey,
+    required String yesterdayKey,
+    required String? lastCompletedKey,
+    required int currentStreak,
+  }) {
+    if (lastCompletedKey == todayKey) return currentStreak; // امروز شمرده شده
+    if (lastCompletedKey == yesterdayKey) return currentStreak + 1;
+    return 1;
+  }
+
+  /// میانگین زمان بازی‌های تکمیل‌شده، یا null اگر هنوز بازی‌ای کامل نشده.
+  int? get averageCompletedSeconds => gamesCompleted.value == 0
+      ? null
+      : totalCompletedSeconds.value ~/ gamesCompleted.value;
+
+  /// بهترین زمان در بین همهٔ حالت‌ها و سطح‌ها.
+  int? get overallBestTime {
+    int? best;
+    for (final value in bestTimes.values) {
+      if (best == null || value < best) best = value;
+    }
+    return best;
   }
 
   String formatDuration(int seconds) {
@@ -1138,6 +1304,8 @@ class HomeController extends GetxController {
       puzzle = generatedPuzzle;
       currentHelperUses.value = 0;
       mistakes.value = 0;
+      _mistakeRow = -1;
+      _mistakeCol = -1;
       selectedNumber.value = 0;
       celebratingNumber.value = null;
       celebratingUnits.clear();
@@ -1283,9 +1451,11 @@ class HomeController extends GetxController {
 
   void _completeGame() {
     if (!_hasActiveGame) return;
+    final isNewRecord = _isNewRecord(elapsedSeconds.value);
     unawaited(_saveBestTime());
+    _recordGameCompletion();
     _deleteSavedGame();
-    _showSuccessDialog();
+    _showSuccessDialog(isNewRecord: isNewRecord);
   }
 
   bool isSolved() {
@@ -1498,7 +1668,8 @@ class HomeController extends GetxController {
     );
   }
 
-  void _showSuccessDialog() {
+  void _showSuccessDialog({required bool isNewRecord}) {
+    final recordMode = isRecordMode;
     Get.dialog(
       Dialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
@@ -1509,11 +1680,33 @@ class HomeController extends GetxController {
             children: [
               const Icon(Icons.emoji_events, size: 64, color: Colors.amber),
               const SizedBox(height: 16),
-              const Text(
-                'تبریک! 🎉',
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+              Text(
+                recordMode
+                    ? (isNewRecord ? 'رکورد جدید! 🏆' : 'پازل کامل شد!')
+                    : 'تبریک! 🎉',
+                style: const TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
               const SizedBox(height: 8),
+              if (recordMode) ...[
+                Text(
+                  'زمان: ${formatDuration(elapsedSeconds.value)}',
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  mistakes.value == 0
+                      ? 'بدون خطا'
+                      : '${mistakes.value} خطا',
+                  style: const TextStyle(fontSize: 16),
+                ),
+                const SizedBox(height: 8),
+              ],
               const Text(
                 'شما بازی را با موفقیت حل کردید!',
                 style: TextStyle(fontSize: 16),

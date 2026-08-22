@@ -7,22 +7,6 @@ import 'home_controller.dart';
 class RecordsPage extends StatelessWidget {
   const RecordsPage({super.key});
 
-  static const Map<GameMode, IconData> _modeIcons = {
-    GameMode.classic: Icons.gamepad_outlined,
-    GameMode.timed: Icons.timer_outlined,
-    GameMode.noHints: Icons.lightbulb_outline,
-    GameMode.daily: Icons.calendar_today_outlined,
-    GameMode.record: Icons.emoji_events_outlined,
-  };
-
-  static const Map<GameMode, Color> _modeColors = {
-    GameMode.classic: Colors.blue,
-    GameMode.timed: Colors.deepOrange,
-    GameMode.noHints: Colors.purple,
-    GameMode.daily: Colors.teal,
-    GameMode.record: Colors.amber,
-  };
-
   String _diffText(Difficulty d) => switch (d) {
     Difficulty.easy => 'آسان',
     Difficulty.medium => 'متوسط',
@@ -102,7 +86,8 @@ class RecordsPage extends StatelessWidget {
         ],
       ),
       body: Obx(() {
-        if (ctrl.bestTimes.isEmpty) {
+        final hasData = ctrl.bestTimes.isNotEmpty || ctrl.gamesCompleted.value > 0;
+        if (!hasData) {
           return Center(
             child: Padding(
               padding: const EdgeInsets.all(32),
@@ -133,6 +118,8 @@ class RecordsPage extends StatelessWidget {
         return ListView(
           padding: const EdgeInsets.all(16),
           children: [
+            _statsDashboard(context, ctrl),
+            const SizedBox(height: 16),
             for (final mode in GameMode.values) _modeSection(context, ctrl, mode),
           ],
         );
@@ -140,8 +127,136 @@ class RecordsPage extends StatelessWidget {
     );
   }
 
+  Widget _statsDashboard(BuildContext context, HomeController ctrl) {
+    final theme = Theme.of(context);
+    return Card(
+      margin: EdgeInsets.zero,
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: theme.colorScheme.outlineVariant),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'خلاصهٔ عملکرد',
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 12),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final columns = constraints.maxWidth >= 420 ? 4 : 2;
+                const spacing = 8.0;
+                final width =
+                    (constraints.maxWidth - spacing * (columns - 1)) / columns;
+                return Wrap(
+                  spacing: spacing,
+                  runSpacing: spacing,
+                  children: [
+                    _statCard(
+                      context,
+                      icon: Icons.flag_outlined,
+                      label: 'بازی‌های تکمیل‌شده',
+                      value: ctrl.gamesCompleted.value.toString(),
+                      color: Colors.blue,
+                      width: width,
+                    ),
+                    _statCard(
+                      context,
+                      icon: Icons.speed_outlined,
+                      label: 'میانگین زمان',
+                      value: ctrl.averageCompletedSeconds == null
+                          ? '--:--'
+                          : ctrl.formatDuration(ctrl.averageCompletedSeconds!),
+                      color: Colors.deepOrange,
+                      width: width,
+                    ),
+                    _statCard(
+                      context,
+                      icon: Icons.local_fire_department_outlined,
+                      label: 'بهترین استریک',
+                      value: ctrl.bestStreak.value.toString(),
+                      color: Colors.teal,
+                      width: width,
+                    ),
+                    _statCard(
+                      context,
+                      icon: Icons.emoji_events_outlined,
+                      label: 'بهترین زمان',
+                      value: ctrl.overallBestTime == null
+                          ? '--:--'
+                          : ctrl.formatDuration(ctrl.overallBestTime!),
+                      color: Colors.amber,
+                      width: width,
+                    ),
+                  ],
+                );
+              },
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'استریک = تعداد روزهای متوالی که چالش روزانه را کامل کرده‌اید.',
+              style: TextStyle(
+                fontSize: 11,
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _statCard(
+    BuildContext context, {
+    required IconData icon,
+    required String label,
+    required String value,
+    required Color color,
+    required double width,
+  }) {
+    final theme = Theme.of(context);
+    return Container(
+      width: width,
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: color, size: 18),
+          const SizedBox(height: 6),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _modeSection(BuildContext context, HomeController ctrl, GameMode mode) {
-    final color = _modeColors[mode]!;
+    final color = HomeController.gameModeColor(mode);
     final best = _bestInMode(ctrl, mode);
 
     return Card(
@@ -160,7 +275,7 @@ class RecordsPage extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
               child: Row(
                 children: [
-                  Icon(_modeIcons[mode], color: color, size: 22),
+                  Icon(HomeController.gameModeIcon(mode), color: color, size: 22),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
@@ -206,7 +321,7 @@ class RecordsPage extends StatelessWidget {
     required bool isBest,
   }) {
     final time = ctrl.bestTimeFor(mode, diff);
-    final color = _modeColors[mode]!;
+    final color = HomeController.gameModeColor(mode);
 
     return ListTile(
       key: ValueKey('record-${mode.name}-${diff.name}'),

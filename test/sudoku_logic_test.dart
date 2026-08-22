@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get/get.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sodocu/home/home_controller.dart';
 
 /// یک جدول سودوکوی حل‌شدهٔ معتبر و ثابت.
@@ -399,6 +400,155 @@ void main() {
 
       expect(controller.mistakes.value, 0);
       expect(controller.isGameOver.value, isFalse);
+    });
+
+    test('خطا، خانه و نشانهٔ لرزش را ثبت می‌کند (نه Snackbar)', () async {
+      controller.gameMode.value = GameMode.record;
+      await controller.newGame();
+
+      final move = findWrongMove(controller);
+      controller.placeMainNumber(move.row, move.col, move.wrong);
+
+      expect(controller.mistakes.value, 1);
+      expect(controller.isMistakeCell(move.row, move.col), isTrue);
+      expect(controller.mistakeFlashToken.value, 1);
+    });
+  });
+
+  group('پیکر عدد و راهنمای مخفی', () {
+    late HomeController controller;
+
+    setUp(() {
+      Get.testMode = true;
+      controller = HomeController();
+      Get.put(controller);
+    });
+
+    tearDown(() {
+      controller.onClose();
+      Get.reset();
+    });
+
+    test('در رقابت رکوردی و بدون راهنما هر ۹ عدد قابل انتخاب‌اند', () {
+      for (final mode in [GameMode.record, GameMode.noHints]) {
+        controller.gameMode.value = mode;
+        expect(controller.filterPickerCandidates, isFalse);
+        for (var n = 1; n <= 9; n++) {
+          expect(
+            controller.isPickerNumberEnabled(0, 0, n),
+            isTrue,
+            reason: '$mode باید عدد $n را فعال نشان دهد',
+          );
+        }
+      }
+    });
+
+    test('در حالت کلاسیک پیکر کاندیداها را فیلتر می‌کند', () {
+      controller.gameMode.value = GameMode.classic;
+      expect(controller.filterPickerCandidates, isTrue);
+      // بدون راه‌حل تولیدشده، هیچ کاندیدای معتبری وجود ندارد.
+      for (var n = 1; n <= 9; n++) {
+        expect(controller.isPickerNumberEnabled(0, 0, n), isFalse);
+      }
+    });
+  });
+
+  group('داشبورد رکوردها', () {
+    late HomeController controller;
+
+    setUp(() {
+      Get.testMode = true;
+      controller = HomeController();
+      Get.put(controller);
+    });
+
+    tearDown(() {
+      controller.onClose();
+      Get.reset();
+    });
+
+    test('nextDailyStreak استریک را درست محاسبه می‌کند', () {
+      // اولین روز
+      expect(
+        HomeController.nextDailyStreak(
+          todayKey: 'd2',
+          yesterdayKey: 'd1',
+          lastCompletedKey: null,
+          currentStreak: 0,
+        ),
+        1,
+      );
+      // روز متوالی
+      expect(
+        HomeController.nextDailyStreak(
+          todayKey: 'd2',
+          yesterdayKey: 'd1',
+          lastCompletedKey: 'd1',
+          currentStreak: 1,
+        ),
+        2,
+      );
+      // همان روز (تکراری)
+      expect(
+        HomeController.nextDailyStreak(
+          todayKey: 'd2',
+          yesterdayKey: 'd1',
+          lastCompletedKey: 'd2',
+          currentStreak: 2,
+        ),
+        2,
+      );
+      // وقفه در زنجیره
+      expect(
+        HomeController.nextDailyStreak(
+          todayKey: 'd3',
+          yesterdayKey: 'd2',
+          lastCompletedKey: 'd1',
+          currentStreak: 3,
+        ),
+        1,
+      );
+    });
+
+    test('overallBestTime کمترین زمان را برمی‌گرداند', () {
+      controller.bestTimes['classic.easy'] = 120;
+      controller.bestTimes['record.hard'] = 65;
+      controller.bestTimes['timed.medium'] = 300;
+
+      expect(controller.overallBestTime, 65);
+    });
+
+    test('averageCompletedSeconds میانگین را می‌سازد و بدون داده null است', () {
+      expect(controller.averageCompletedSeconds, isNull);
+
+      controller.gamesCompleted.value = 2;
+      controller.totalCompletedSeconds.value = 150;
+
+      expect(controller.averageCompletedSeconds, 75);
+    });
+  });
+
+  group('آشناسازی اولیه', () {
+    late HomeController controller;
+
+    setUp(() {
+      Get.testMode = true;
+      SharedPreferences.setMockInitialValues({});
+      controller = HomeController();
+      Get.put(controller);
+    });
+
+    tearDown(() {
+      controller.onClose();
+      Get.reset();
+    });
+
+    test('markOnboardingSeen وضعیت مشاهده‌شده را نگه می‌دارد', () async {
+      await controller.initialize();
+
+      expect(controller.onboardingSeen, isFalse);
+      await controller.markOnboardingSeen();
+      expect(controller.onboardingSeen, isTrue);
     });
   });
 }

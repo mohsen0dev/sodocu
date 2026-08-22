@@ -33,32 +33,100 @@ class _SudokuBoardState extends State<SudokuBoard> {
 
   Future<void> _initializeGame() async {
     final hasPreviousGame = await ctrl.initialize();
-    if (!mounted || !hasPreviousGame) return;
+    if (!mounted) return;
 
-    final continueGame = await Get.dialog<bool>(
+    if (hasPreviousGame) {
+      final continueGame = await Get.dialog<bool>(
+        AlertDialog(
+          title: const Text('ادامه بازی قبلی؟'),
+          content: Text(
+            'یک بازی ذخیره‌شده پیدا شد. زمان سپری‌شده: '
+            '${ctrl.formatDuration(ctrl.elapsedSeconds.value)}',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Get.back(result: false),
+              child: const Text('بازی جدید'),
+            ),
+            FilledButton(
+              onPressed: () => Get.back(result: true),
+              child: const Text('ادامه'),
+            ),
+          ],
+        ),
+        barrierDismissible: false,
+      );
+
+      if (mounted && continueGame != true) {
+        await ctrl.newGame();
+      }
+    }
+
+    if (mounted && !ctrl.onboardingSeen) {
+      await _showOnboarding();
+    }
+  }
+
+  Future<void> _showOnboarding() async {
+    if (Get.testMode) return;
+    await Get.dialog<void>(
       AlertDialog(
-        title: const Text('ادامه بازی قبلی؟'),
-        content: Text(
-          'یک بازی ذخیره‌شده پیدا شد. زمان سپری‌شده: '
-          '${ctrl.formatDuration(ctrl.elapsedSeconds.value)}',
+        title: const Text('به سودوکو خوش آمدید 👋'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _onboardingItem(
+              Icons.edit_note,
+              'حالت یادداشت',
+              'کاندیداهای هر خانه را بدون ثبت عدد نهایی یادداشت کنید.',
+            ),
+            const SizedBox(height: 12),
+            _onboardingItem(
+              Icons.lightbulb,
+              'راهنما',
+              'در حالت‌های عادی تا ۳ بار یک خانهٔ خالی را برایتان پر می‌کند.',
+            ),
+          ],
         ),
         actions: [
-          TextButton(
-            onPressed: () => Get.back(result: false),
-            child: const Text('بازی جدید'),
-          ),
           FilledButton(
-            onPressed: () => Get.back(result: true),
-            child: const Text('ادامه'),
+            onPressed: () {
+              ctrl.markOnboardingSeen();
+              Get.back();
+            },
+            child: const Text('شروع'),
           ),
         ],
       ),
       barrierDismissible: false,
     );
+  }
 
-    if (mounted && continueGame != true) {
-      await ctrl.newGame();
-    }
+  Widget _onboardingItem(IconData icon, String title, String subtitle) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, color: Colors.blue, size: 22),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                subtitle,
+                style: const TextStyle(fontSize: 13, color: Colors.grey),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
   }
 
   void _selectNumber(int number) {
@@ -304,8 +372,13 @@ class _SudokuBoardState extends State<SudokuBoard> {
                 child: _infoCard(
                   icon: Icons.error_outline,
                   title: 'خطاهای باقی‌مانده',
-                  value:
-                      '${HomeController.maxMistakes - ctrl.mistakes.value} از ${HomeController.maxMistakes}',
+                  valueWidget: _BounceOnChange(
+                    key: ValueKey('mistake-counter-${ctrl.mistakes.value}'),
+                    value:
+                        '${HomeController.maxMistakes - ctrl.mistakes.value} از ${HomeController.maxMistakes}',
+                    announcement:
+                        'خطاهای باقی‌مانده: ${HomeController.maxMistakes - ctrl.mistakes.value} از ${HomeController.maxMistakes}',
+                  ),
                   color: ctrl.mistakes.value >= HomeController.maxMistakes - 1
                       ? Colors.red
                       : Colors.deepOrange,
@@ -332,7 +405,8 @@ class _SudokuBoardState extends State<SudokuBoard> {
   Widget _infoCard({
     required IconData icon,
     required String title,
-    required String value,
+    String? value,
+    Widget? valueWidget,
     required Color color,
   }) {
     return Container(
@@ -351,13 +425,14 @@ class _SudokuBoardState extends State<SudokuBoard> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(title, style: const TextStyle(fontSize: 12)),
-              Text(
-                value,
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
+              valueWidget ??
+                  Text(
+                    value!,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
             ],
           ),
         ],
@@ -366,28 +441,108 @@ class _SudokuBoardState extends State<SudokuBoard> {
   }
 
   Widget _modeWidget() {
-    return Obx(
-      () => DropdownButton<GameMode>(
-        value: ctrl.gameMode.value,
-        isExpanded: true,
-        items: GameMode.values
-            .map(
-              (mode) => DropdownMenuItem(
-                value: mode,
-                // چالش روزانه فقط یک بار در روز قابل شروع است.
-                enabled: mode != GameMode.daily || !ctrl.dailyAttemptUsed,
-                child: Text(_modeText(mode)),
+    return Obx(() {
+      final selected = ctrl.gameMode.value;
+      return ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 460),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final columns = constraints.maxWidth >= 430 ? 3 : 2;
+            const spacing = 8.0;
+            final cellWidth =
+                (constraints.maxWidth - spacing * (columns - 1)) / columns;
+            return Wrap(
+              spacing: spacing,
+              runSpacing: spacing,
+              children: [
+                for (final mode in GameMode.values)
+                  _modeCard(mode, selected, cellWidth),
+              ],
+            );
+          },
+        ),
+      );
+    });
+  }
+
+  Widget _modeCard(GameMode mode, GameMode selected, double width) {
+    final color = HomeController.gameModeColor(mode);
+    final isSelected = mode == selected;
+    final dailyDisabled = mode == GameMode.daily && ctrl.dailyAttemptUsed;
+
+    return Semantics(
+      button: true,
+      selected: isSelected,
+      enabled: !dailyDisabled,
+      label:
+          '${HomeController.gameModeLabel(mode)}. '
+          '${HomeController.gameModeDescription(mode)}',
+      child: Opacity(
+        opacity: dailyDisabled ? 0.45 : 1,
+        child: Material(
+          color: isSelected ? color.withValues(alpha: 0.16) : Colors.transparent,
+          borderRadius: BorderRadius.circular(12),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(12),
+            onTap: dailyDisabled ? null : () => ctrl.changeMode(mode),
+            child: Container(
+              width: width,
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: isSelected ? color : color.withValues(alpha: 0.35),
+                  width: isSelected ? 2 : 1,
+                ),
               ),
-            )
-            .toList(),
-        onChanged: (mode) {
-          if (mode != null) ctrl.changeMode(mode);
-        },
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        HomeController.gameModeIcon(mode),
+                        color: color,
+                        size: 18,
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          HomeController.gameModeLabel(mode),
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                            color: isSelected ? color : null,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (isSelected)
+                        Icon(Icons.check_circle, color: color, size: 16),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    dailyDisabled
+                        ? 'انجام شده — فردا دوباره'
+                        : HomeController.gameModeDescription(mode),
+                    style: TextStyle(
+                      fontSize: 11,
+                      height: 1.3,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
-
-  String _modeText(GameMode mode) => HomeController.gameModeLabel(mode);
 
   Widget _difficultyWidget() {
     return Obx(() {
@@ -670,6 +825,8 @@ class _SudokuBoardState extends State<SudokuBoard> {
                         row: row,
                         col: col,
                         ctrl: ctrl,
+                        mistakeFlashToken: ctrl.mistakeFlashToken.value,
+                        isMistake: ctrl.isMistakeCell(row, col),
                         borderColor: ctrl.selectedNumber.value == value
                             ? Colors.orange
                             : Colors.grey.shade300,
@@ -881,7 +1038,6 @@ class _SudokuBoardState extends State<SudokuBoard> {
   Widget _numberPickerWidget() {
     final row = _selectedRow!;
     final col = _selectedCol!;
-    final allowed = ctrl.allowedNumbers(row, col);
     final notes = ctrl.cells[row][col].notes;
     final currentValue = ctrl.cells[row][col].value;
 
@@ -925,10 +1081,7 @@ class _SudokuBoardState extends State<SudokuBoard> {
                 itemBuilder: (context, idx) {
                   final number = idx + 1;
                   final isNote = notes.contains(number);
-                  final enabled =
-                      currentValue == 0 &&
-                      (allowed.contains(number) ||
-                          (ctrl.noteMode.value && isNote));
+                  final enabled = ctrl.isPickerNumberEnabled(row, col, number);
 
                   return GestureDetector(
                     onTap: enabled
@@ -1138,6 +1291,8 @@ class _AnimatedCellContainer extends StatefulWidget {
     required this.borderColor,
     required this.borderWidth,
     this.backgroundColor,
+    this.mistakeFlashToken = 0,
+    this.isMistake = false,
     required this.child,
   });
 
@@ -1147,6 +1302,8 @@ class _AnimatedCellContainer extends StatefulWidget {
   final Color borderColor;
   final double borderWidth;
   final Color? backgroundColor;
+  final int mistakeFlashToken;
+  final bool isMistake;
   final Widget? child;
 
   @override
@@ -1154,9 +1311,11 @@ class _AnimatedCellContainer extends StatefulWidget {
 }
 
 class _AnimatedCellContainerState extends State<_AnimatedCellContainer>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   late final AnimationController _controller;
+  late final AnimationController _mistakeController;
   int _lastRegionToken = 0;
+  int _lastMistakeToken = 0;
 
   @override
   void initState() {
@@ -1164,6 +1323,10 @@ class _AnimatedCellContainerState extends State<_AnimatedCellContainer>
     _controller = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 900),
+    );
+    _mistakeController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 360),
     );
   }
 
@@ -1199,6 +1362,120 @@ class _AnimatedCellContainerState extends State<_AnimatedCellContainer>
       _lastRegionToken = widget.ctrl.celebrationToken.value;
       _controller.forward(from: 0);
     }
+    if (widget.isMistake && widget.mistakeFlashToken != _lastMistakeToken) {
+      _lastMistakeToken = widget.mistakeFlashToken;
+      if (!MediaQuery.of(context).disableAnimations) {
+        _mistakeController.forward(from: 0);
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    _mistakeController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: Listenable.merge([_controller, _mistakeController]),
+      builder: (context, child) {
+        final progress = _controller.value;
+        final mistakeProgress = _mistakeController.value;
+        final isCelebrating = widget.ctrl.isCellCelebrating(
+          widget.row,
+          widget.col,
+        );
+        final isMistakeAnimating = _mistakeController.isAnimating;
+
+        final persistent = _persistentBackground();
+        final base = persistent == Colors.transparent ? null : persistent;
+        final bgColor = isMistakeAnimating
+            ? Color.lerp(
+                base ?? Colors.transparent,
+                Colors.red,
+                0.35 * (1 - mistakeProgress),
+              )
+            : (_controller.isAnimating || isCelebrating
+                ? _celebrationColor(progress)
+                : persistent);
+
+        final shake = isMistakeAnimating
+            ? sin(mistakeProgress * pi * 8) * 6 * (1 - mistakeProgress)
+            : 0.0;
+
+        return Transform.translate(
+          offset: Offset(shake, 0),
+          child: Container(
+            decoration: BoxDecoration(
+              border: Border.all(
+                color: isMistakeAnimating ? Colors.red : widget.borderColor,
+                width: isMistakeAnimating ? 2 : widget.borderWidth,
+              ),
+              color: bgColor == Colors.transparent ? null : bgColor,
+              boxShadow: _controller.isAnimating
+                  ? [
+                      BoxShadow(
+                        color: Colors.amber.withValues(
+                          alpha: 0.35 * (1 - progress),
+                        ),
+                        blurRadius: 10,
+                        spreadRadius: 1,
+                      ),
+                    ]
+                  : null,
+            ),
+            child: widget.child,
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// نمایش عددی که هنگام تغییر، یک پرش کوتاه دارد و برای screen reader
+/// از طریق ناحیهٔ زنده اعلام می‌شود.
+class _BounceOnChange extends StatefulWidget {
+  const _BounceOnChange({
+    required this.value,
+    this.announcement,
+    super.key,
+  });
+
+  final String value;
+  final String? announcement;
+
+  @override
+  State<_BounceOnChange> createState() => _BounceOnChangeState();
+}
+
+class _BounceOnChangeState extends State<_BounceOnChange>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _scale;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 260),
+    );
+    _scale = TweenSequence<double>([
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 1.35), weight: 40),
+      TweenSequenceItem(tween: Tween(begin: 1.35, end: 1.0), weight: 60),
+    ]).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
+  }
+
+  @override
+  void didUpdateWidget(_BounceOnChange oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.value != widget.value &&
+        !MediaQuery.of(context).disableAnimations) {
+      _controller.forward(from: 0);
+    }
   }
 
   @override
@@ -1209,40 +1486,19 @@ class _AnimatedCellContainerState extends State<_AnimatedCellContainer>
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (context, child) {
-        final progress = _controller.value;
-        final isCelebrating = widget.ctrl.isCellCelebrating(
-          widget.row,
-          widget.col,
-        );
-        final bgColor = _controller.isAnimating || isCelebrating
-            ? _celebrationColor(progress)
-            : _persistentBackground();
-
-        return Container(
-          decoration: BoxDecoration(
-            border: Border.all(
-              color: widget.borderColor,
-              width: widget.borderWidth,
-            ),
-            color: bgColor == Colors.transparent ? null : bgColor,
-            boxShadow: _controller.isAnimating
-                ? [
-                    BoxShadow(
-                      color: Colors.amber.withValues(
-                        alpha: 0.35 * (1 - progress),
-                      ),
-                      blurRadius: 10,
-                      spreadRadius: 1,
-                    ),
-                  ]
-                : null,
+    return Semantics(
+      liveRegion: true,
+      label: widget.announcement ?? widget.value,
+      child: ScaleTransition(
+        scale: _scale,
+        child: Text(
+          widget.value,
+          style: const TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
           ),
-          child: widget.child,
-        );
-      },
+        ),
+      ),
     );
   }
 }

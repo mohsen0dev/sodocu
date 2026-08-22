@@ -66,8 +66,8 @@ void main() {
     await tester.pumpWidget(const GetMaterialApp(home: RecordsPage()));
     await tester.pump();
 
-    // نمایش زمان‌ها با فرمت دقیقه:ثانیه
-    expect(find.text('01:05'), findsOneWidget);
+    // نمایش زمان‌ها با فرمت دقیقه:ثانیه (بهترین زمان کلی در داشبورد هم تکرار می‌شود)
+    expect(find.text('01:05'), findsNWidgets(2));
     expect(find.text('02:00'), findsOneWidget);
     expect(find.text('05:00'), findsOneWidget);
 
@@ -89,6 +89,41 @@ void main() {
 
     expect(controller.bestTimes, isEmpty);
     expect(find.text('هنوز رکوردی ثبت نشده است'), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpAndSettle();
+    Get.reset();
+  });
+
+  testWidgets('انتخاب‌گر حالت هر ۵ حالت و قوانین را نمایش می‌دهد', (
+    WidgetTester tester,
+  ) async {
+    Get.testMode = true;
+    await tester.pumpWidget(const SudokuApp());
+
+    final controller = Get.find<HomeController>();
+    for (var i = 0; i < 100 && controller.isLoading.value; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    await tester.pump();
+    expect(controller.isLoading.value, isFalse);
+
+    // هر ۵ حالت
+    expect(find.text('کلاسیک'), findsOneWidget);
+    expect(find.text('زمان‌دار (۵ دقیقه)'), findsOneWidget);
+    expect(find.text('بدون راهنما'), findsOneWidget);
+    expect(find.text('چالش روزانه'), findsOneWidget);
+    expect(find.text('رقابت رکوردی'), findsOneWidget);
+
+    // قوانین اصلی دو حالت خاص
+    expect(
+      find.text('رقابت با بهترین زمان؛ حداکثر ۳ خطا'),
+      findsOneWidget,
+    );
+    expect(
+      find.text('یک پازل ثابت در روز؛ فقط یک تلاش'),
+      findsOneWidget,
+    );
 
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pumpAndSettle();
