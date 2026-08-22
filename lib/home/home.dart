@@ -599,126 +599,122 @@ class _SudokuBoardState extends State<SudokuBoard> {
         return const SizedBox(height: 31);
       }
 
+      final theme = Theme.of(context);
       return ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 460, minWidth: 400),
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            double totalWidth = constraints.maxWidth;
-            double cellSize = (totalWidth - (10 * 6)) / 9.5;
+        constraints: const BoxConstraints(maxWidth: 460),
+        child: Card(
+          margin: EdgeInsets.zero,
+          elevation: 0,
+          color: theme.colorScheme.surfaceContainerHighest.withValues(
+            alpha: 0.5,
+          ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+            side: BorderSide(color: theme.colorScheme.outlineVariant),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                const gap = 6.0;
+                final cellSize = ((constraints.maxWidth - gap * 9) / 10)
+                    .clamp(28.0, 46.0);
 
-            return Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: List.generate(10, (index) {
-                return Obx(() {
-                  final number = index; // 0 تا 9
-                  final used = ctrl.numberUsage[number] ?? 0;
-                  final isSelected = ctrl.selectedNumber.value == number;
+                return Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: List.generate(10, (index) {
+                    return Obx(() {
+                      final number = index; // 0 تا 9
+                      final used = ctrl.numberUsage[number] ?? 0;
+                      final isSelected = ctrl.selectedNumber.value == number;
+                      final isDisabled = number != 0 && used >= 9;
+                      final isDelete = number == 0;
 
-                  // عدد 9 برای دکمه حذف (آیکون)
-                  if (number == 0) {
-                    return GestureDetector(
-                      onTap: () {
-                        _selectNumber(0); // انتخاب حالت حذف
-                      },
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 150),
-                        width: cellSize.clamp(30.0, 45.0),
-                        height: cellSize.clamp(30.0, 45.0),
-                        decoration: BoxDecoration(
-                          color: isSelected
-                              ? Colors.red.shade200
-                              : Colors.transparent,
-                          border: Border.all(
-                            color: isSelected ? Colors.red : Colors.white,
-                            width: 0.5,
+                      final accent = isDelete ? Colors.red : Colors.blue;
+                      final tileColor = isSelected
+                          ? (isDelete
+                                ? Colors.red.shade700
+                                : Colors.blue.shade700)
+                          : theme.colorScheme.surfaceContainerHigh.withValues(
+                              alpha: 0.4,
+                            );
+                      final borderColor = isSelected
+                          ? (isDelete ? Colors.redAccent : Colors.lightBlueAccent)
+                          : theme.colorScheme.outlineVariant;
+
+                      return GestureDetector(
+                        onTap: isDisabled ? null : () => _selectNumber(number),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 150),
+                          width: cellSize,
+                          height: cellSize,
+                          key: ValueKey('number-button-$number'),
+                          decoration: BoxDecoration(
+                            color: tileColor,
+                            border: Border.all(
+                              color: borderColor,
+                              width: isSelected ? 2 : 1,
+                            ),
+                            borderRadius: BorderRadius.circular(10),
+                            boxShadow: isSelected
+                                ? [
+                                    BoxShadow(
+                                      color: accent.withValues(alpha: 0.45),
+                                      blurRadius: 8,
+                                      spreadRadius: 1,
+                                    ),
+                                  ]
+                                : null,
                           ),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Icon(
-                          Icons.delete_outline,
-                          color: isSelected ? Colors.red : Colors.red.shade300,
-                          size: cellSize.clamp(20.0, 28.0),
-                        ),
-                      ),
-                    );
-                  }
-
-                  // اعداد 1 تا 9
-                  final isDisabled = used >= 9;
-
-                  return GestureDetector(
-                    onTap: isDisabled
-                        ? null
-                        : () {
-                            _selectNumber(number);
-                          },
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 150),
-                      width: cellSize.clamp(30.0, 45.0),
-                      height: cellSize.clamp(30.0, 45.0),
-                      key: ValueKey('number-button-$number'),
-                      decoration: BoxDecoration(
-                        color: isSelected
-                            ? Colors.blue.shade700
-                            : Colors.transparent,
-                        border: Border.all(
-                          color: isDisabled
-                              ? Colors.grey.shade800
-                              : isSelected
-                              ? Colors.lightBlueAccent
-                              : Colors.white,
-                          width: isSelected ? 2 : 0.5,
-                        ),
-                        borderRadius: BorderRadius.circular(8),
-                        boxShadow: isSelected
-                            ? [
-                                BoxShadow(
-                                  color: Colors.blue.withValues(alpha: 0.45),
-                                  blurRadius: 8,
-                                  spreadRadius: 1,
+                          child: isDelete
+                              ? Icon(
+                                  Icons.delete_outline,
+                                  color: isSelected
+                                      ? Colors.white
+                                      : Colors.red.shade300,
+                                  size: cellSize.clamp(18.0, 26.0),
+                                )
+                              : Stack(
+                                  children: [
+                                    Positioned(
+                                      top: 2,
+                                      right: 3,
+                                      child: Text(
+                                        used.toString(),
+                                        style: TextStyle(
+                                          fontSize: 9,
+                                          fontWeight: FontWeight.w600,
+                                          color: isSelected
+                                              ? Colors.white70
+                                              : theme.colorScheme.onSurfaceVariant,
+                                        ),
+                                      ),
+                                    ),
+                                    Center(
+                                      child: Text(
+                                        number.toString(),
+                                        style: TextStyle(
+                                          fontSize: 22,
+                                          fontWeight: FontWeight.w600,
+                                          color: isDisabled
+                                              ? theme.colorScheme.onSurface
+                                                  .withValues(alpha: 0.38)
+                                              : isSelected
+                                              ? Colors.white
+                                              : theme.colorScheme.onSurface,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                              ]
-                            : null,
-                      ),
-
-                      child: Stack(
-                        children: [
-                          Positioned(
-                            top: 2,
-                            right: 4,
-                            child: Text(
-                              used.toString(),
-                              style: TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w500,
-                                color: isSelected
-                                    ? Colors.white70
-                                    : Colors.grey.shade600,
-                              ),
-                            ),
-                          ),
-                          Center(
-                            child: Text(
-                              number.toString(),
-                              style: TextStyle(
-                                fontSize: 24,
-                                fontWeight: FontWeight.w500,
-                                color: isDisabled
-                                    ? Colors.grey.shade800
-                                    : isSelected
-                                    ? Colors.white
-                                    : Colors.white,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                });
-              }),
-            );
-          },
+                        ),
+                      );
+                    });
+                  }),
+                );
+              },
+            ),
+          ),
         ),
       );
     });
