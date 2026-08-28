@@ -162,9 +162,20 @@ class HomeController extends GetxController {
   Future<bool> initialize() async {
     try {
       // در صورت در دسترس نبودن سرویس ذخیره‌سازی، بازی نباید در حالت بارگذاری بماند.
-      _preferences = await SharedPreferences.getInstance().timeout(
-        const Duration(seconds: 1),
-      );
+      try {
+        _preferences = await SharedPreferences.getInstance().timeout(
+          const Duration(seconds: 1),
+        );
+      } on TimeoutException {
+        // دستگاه کند: در پس‌زمینه دوباره تلاش می‌کنیم تا ذخیره‌سازی
+        // کل سشن از دست نرود؛ بازی ذخیره‌شده حذف نمی‌شود.
+        unawaited(
+          SharedPreferences.getInstance().then((prefs) {
+            _preferences ??= prefs;
+          }),
+        );
+        _preferences = null;
+      }
       _loadBestTimes();
       _loadStats();
       final savedGame = _preferences!.getString(_savedGameKey);
@@ -220,11 +231,17 @@ class HomeController extends GetxController {
     try {
       final decoded = jsonDecode(raw);
       if (decoded is! Map) return;
-      gamesCompleted.value = _asInt(decoded['gamesCompleted']) ?? 0;
+      gamesCompleted.value = (_asInt(decoded['gamesCompleted']) ?? 0).clamp(
+        0,
+        1 << 30,
+      );
       totalCompletedSeconds.value =
-          _asInt(decoded['totalCompletedSeconds']) ?? 0;
-      bestStreak.value = _asInt(decoded['bestStreak']) ?? 0;
-      _currentStreak = _asInt(decoded['currentStreak']) ?? 0;
+          (_asInt(decoded['totalCompletedSeconds']) ?? 0).clamp(0, 1 << 30);
+      bestStreak.value = (_asInt(decoded['bestStreak']) ?? 0).clamp(0, 1 << 20);
+      _currentStreak = (_asInt(decoded['currentStreak']) ?? 0).clamp(
+        0,
+        1 << 20,
+      );
       final last = decoded['lastDailyCompletedKey'];
       _lastDailyCompletedKey = last is String ? last : null;
     } catch (_) {
@@ -424,7 +441,10 @@ class HomeController extends GetxController {
     return j.year * 10000 + j.month * 100 + j.day;
   }
 
-  String get recordKey => '${gameMode.value.name}.${difficulty.value.name}';
+  /// کلید رکورد بر اساس حالت و سطح مؤثر؛ در چالش روزانه سطح واقعی پازل
+  /// همیشه ثابت است، نه سطح انتخابی کاربر.
+  String get recordKey =>
+      '${gameMode.value.name}.${_effectiveDifficulty.name}';
 
   static String gameModeLabel(GameMode mode) => switch (mode) {
     GameMode.classic => 'کلاسیک',
@@ -826,6 +846,7 @@ class HomeController extends GetxController {
   }
 
   void undo() {
+    if (isGameOver.value) return;
     if (_undoStack.isEmpty) return;
     _redoStack.add(_copyCells());
     _restoreCells(_undoStack.removeLast());
@@ -838,6 +859,7 @@ class HomeController extends GetxController {
   }
 
   void redo() {
+    if (isGameOver.value) return;
     if (_redoStack.isEmpty) return;
     _undoStack.add(_copyCells());
     _restoreCells(_redoStack.removeLast());

@@ -754,7 +754,7 @@ class _SudokuBoardState extends State<SudokuBoard> {
                   // خانه‌های ثابت (پازل اولیه)
                   if (ctrl.puzzle != null && ctrl.puzzle![row][col] != 0) {
                     return Obx(() {
-                      final cellValue = int.parse(ctrl.getCellValue(row, col));
+                      final cellValue = ctrl.cells[row][col].value;
                       final highlight = ctrl.selectedNumber.value == cellValue;
                       return _AnimatedCellContainer(
                         row: row,

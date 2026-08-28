@@ -215,6 +215,26 @@ void main() {
       expect(controller.numberUsage[5], 0);
     });
 
+    test('undo و redo پس از پایان بازی جدول را تغییر نمی‌دهند', () {
+      controller.placeMainNumber(0, 0, 7);
+      expect(controller.canUndo.value, isTrue);
+
+      controller.isGameOver.value = true;
+      final snapshot = controller.cells
+          .map((row) => row.map((c) => c.value).toList())
+          .toList();
+
+      controller.undo();
+      controller.redo();
+
+      expect(
+        controller.cells
+            .map((row) => row.map((c) => c.value).toList())
+            .toList(),
+        equals(snapshot),
+      );
+    });
+
     test('isRowComplete ردیف کامل و ناقص را تشخیص می‌دهد', () {
       expect(controller.isRowComplete(0), isFalse);
 
@@ -298,6 +318,26 @@ void main() {
 
       expect(clueCount, lessThanOrEqualTo(expected));
       expect(clueCount, greaterThanOrEqualTo(expected - 5));
+    });
+    test('recordKey در چالش روزانه از سطح ثابت پازل استفاده می‌کند', () async {
+      controller.gameMode.value = GameMode.daily;
+      controller.difficulty.value = Difficulty.hard;
+      // تغییر difficulty شنوندهٔ ever را فعال می‌کند که newGame را
+      // غیرهمگام اجرا می‌کند؛ پیش از پایان تست منتظر کامل‌شدن آن می‌مانیم.
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+
+      expect(
+        controller.recordKey,
+        'daily.${HomeController.dailyDifficulty.name}',
+      );
+    });
+
+    test('recordKey در حالت‌های دیگر از سطح انتخابی استفاده می‌کند', () async {
+      controller.gameMode.value = GameMode.classic;
+      controller.difficulty.value = Difficulty.hard;
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+
+      expect(controller.recordKey, 'classic.hard');
     });
   });
 
