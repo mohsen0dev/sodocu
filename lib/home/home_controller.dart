@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:math' show Random;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sodocu/utils/jalali.dart';
@@ -512,6 +513,7 @@ class HomeController extends GetxController {
     _hasActiveGame = false;
     _stopTimer();
     _deleteSavedGame();
+    unawaited(HapticFeedback.heavyImpact());
     _showGameOverDialog();
   }
 
@@ -576,6 +578,7 @@ class HomeController extends GetxController {
     _mistakeRow = row;
     _mistakeCol = col;
     mistakeFlashToken.value++;
+    unawaited(HapticFeedback.mediumImpact());
     if (mistakes.value >= maxMistakes) {
       _finishRecordGameByMistakes();
     }
@@ -587,6 +590,7 @@ class HomeController extends GetxController {
     _hasActiveGame = false;
     _stopTimer();
     _deleteSavedGame();
+    unawaited(HapticFeedback.heavyImpact());
     _showMistakeGameOverDialog();
   }
 
@@ -1477,6 +1481,7 @@ class HomeController extends GetxController {
     unawaited(_saveBestTime());
     _recordGameCompletion();
     _deleteSavedGame();
+    unawaited(HapticFeedback.mediumImpact());
     _showSuccessDialog(isNewRecord: isNewRecord);
   }
 
@@ -1522,7 +1527,7 @@ class HomeController extends GetxController {
       return Colors.transparent;
     }
     if (_isNumberFullyPlaced(value)) {
-      return Colors.grey.shade800;
+      return Get.isDarkMode ? Colors.grey.shade300 : Colors.grey.shade800;
     }
     if (cells[row][col].isFixed) {
       return Colors.grey.shade400;
@@ -1624,6 +1629,7 @@ class HomeController extends GetxController {
   }
 
   void _afterNumberPlaced(int row, int col, int number) {
+    unawaited(HapticFeedback.lightImpact());
     _onNumberPlaced(number);
     _checkAndCelebrateUnits(row, col);
   }

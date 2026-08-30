@@ -108,8 +108,15 @@ void main() {
     await tester.pump();
     expect(controller.isLoading.value, isFalse);
 
-    // هر ۵ حالت
+    // دکمهٔ فشردهٔ حالت در صفحهٔ اصلی
     expect(find.text('کلاسیک'), findsOneWidget);
+
+    // باز کردن شیت «حالت و سطح»
+    await tester.tap(find.byIcon(Icons.arrow_drop_down));
+    await tester.pumpAndSettle();
+
+    // هر ۵ حالت داخل شیت (کلاسیک هم در دکمهٔ پشت شیت هست)
+    expect(find.text('کلاسیک'), findsNWidgets(2));
     expect(find.text('زمان‌دار (۵ دقیقه)'), findsOneWidget);
     expect(find.text('بدون راهنما'), findsOneWidget);
     expect(find.text('چالش روزانه'), findsOneWidget);

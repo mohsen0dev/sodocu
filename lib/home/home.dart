@@ -104,23 +104,24 @@ class _SudokuBoardState extends State<SudokuBoard> {
   }
 
   Widget _onboardingItem(IconData icon, String title, String subtitle) {
+    final theme = Theme.of(context);
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, color: Colors.blue, size: 22),
+        Icon(icon, color: theme.colorScheme.primary, size: 22),
         const SizedBox(width: 12),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                title,
-                style: const TextStyle(fontWeight: FontWeight.bold),
-              ),
+              Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
               const SizedBox(height: 2),
               Text(
                 subtitle,
-                style: const TextStyle(fontSize: 13, color: Colors.grey),
+                style: TextStyle(
+                  fontSize: 13,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
               ),
             ],
           ),
@@ -193,10 +194,10 @@ class _SudokuBoardState extends State<SudokuBoard> {
   void _confirmNewGame() {
     Get.defaultDialog(
       title: 'شروع بازی جدید',
-      titleStyle: const TextStyle(
+      titleStyle: TextStyle(
         fontSize: 20,
         fontWeight: FontWeight.bold,
-        color: Colors.blue,
+        color: Theme.of(context).colorScheme.primary,
       ),
       middleText: 'آیا مطمئن هستید؟ جدول فعلی پاک می‌شود.',
       textCancel: 'نه',
@@ -213,10 +214,10 @@ class _SudokuBoardState extends State<SudokuBoard> {
   void _confirmChangeDifficulty(Difficulty newDiff) {
     Get.defaultDialog(
       title: 'تغییر سطح',
-      titleStyle: const TextStyle(
+      titleStyle: TextStyle(
         fontSize: 20,
         fontWeight: FontWeight.bold,
-        color: Colors.blueAccent,
+        color: Theme.of(context).colorScheme.primary,
       ),
       middleText:
           'آیا می‌خواهید سطح را به "${_diffText(newDiff)}" تغییر دهید؟\nجدول فعلی حذف می‌شود',
@@ -257,6 +258,130 @@ class _SudokuBoardState extends State<SudokuBoard> {
     Difficulty.hard: 'سخت',
   }[d]!;
 
+  /// شیت «حالت و سطح»: انتخابگر حالت و سطح از صفحهٔ اصلی به اینجا منتقل
+  /// شده‌اند تا جدول و نوار اعداد در تمرکز اصلی صفحه بمانند.
+  void _showModeSheet() {
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      builder: (sheetContext) {
+        return SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // دکمهٔ شروع بازی جدید؛ از نوار بالا به اینجا منتقل شده است.
+              FilledButton.icon(
+                onPressed: _confirmNewGame,
+                icon: const Icon(Icons.gamepad_outlined),
+                label: const Text('شروع بازی جدید'),
+                style: FilledButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Text(
+                  'حالت بازی',
+                  style: Theme.of(sheetContext).textTheme.titleLarge,
+                ),
+              ),
+              _modeWidget(),
+              const SizedBox(height: 12),
+              _difficultyWidget(),
+            ],
+          ),
+          ),
+        );
+      },
+    );
+  }
+
+  /// شیت «تنظیمات»: راهنما، سوییچ‌ها، پاک‌سازی یادداشت‌ها و درباره.
+  void _showSettingsSheet() {
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      builder: (sheetContext) {
+        return SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Text(
+                    'تنظیمات',
+                    style: Theme.of(sheetContext).textTheme.titleLarge,
+                  ),
+                ),
+                _helperCard(),
+                const SizedBox(height: 12),
+                _settingsCard(),
+                const SizedBox(height: 12),
+                _cleanNotesButton(),
+                const SizedBox(height: 4),
+                ListTile(
+                  leading: const Icon(Icons.info_outline),
+                  title: const Text('دربارهٔ بازی'),
+                  onTap: () {
+                    Navigator.of(sheetContext).pop();
+                    Get.to(const AboutPage());
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  /// دکمهٔ فشردهٔ حالت فعلی؛ لمس آن شیت «حالت و سطح» را باز می‌کند.
+  Widget _modeQuickButton() {
+    return Obx(() {
+      final mode = ctrl.gameMode.value;
+      final color = HomeController.gameModeColor(mode);
+      return Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 460),
+          child: Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: OutlinedButton.icon(
+              onPressed: _showModeSheet,
+              icon: Icon(HomeController.gameModeIcon(mode), size: 18),
+              label: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Flexible(
+                    child: Text(
+                      ctrl.modeTitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  const SizedBox(width: 2),
+                  const Icon(Icons.arrow_drop_down, size: 20),
+                ],
+              ),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: color,
+                side: BorderSide(color: color.withValues(alpha: 0.5)),
+              ),
+            ),
+          ),
+        ),
+      );
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -284,21 +409,15 @@ class _SudokuBoardState extends State<SudokuBoard> {
               tooltip: 'بازگردانی',
             ),
           ),
-
-          Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: FilledButton.icon(
-              onPressed: _confirmNewGame,
-              label: const Text('بازی جدید'),
-              icon: const Icon(Icons.gamepad_outlined),
-            ),
-          ),
         ],
         leading: IconButton(
-          onPressed: () => Get.to(const AboutPage()),
-          icon: const Icon(Icons.info_outline),
+          tooltip: 'تنظیمات',
+          onPressed: _showSettingsSheet,
+          icon: const Icon(Icons.settings_outlined),
         ),
       ),
+      // نوار اعداد همیشه در دید است و با اسکرول جدول جابه‌جا نمی‌شود.
+      bottomNavigationBar: SafeArea(child: _numberConstWidget()),
       body: Obx(() {
         if (ctrl.isLoading.value) {
           return const Center(
@@ -330,11 +449,8 @@ class _SudokuBoardState extends State<SudokuBoard> {
                     spacing: 20,
                     children: [
                       _gameInfoWidget(),
-                      _modeWidget(),
-                      _difficultyWidget(),
+                      _modeQuickButton(),
                       _boardWidget(),
-                      _numberConstWidget(),
-                      _menuWidget(),
                     ],
                   ),
                 ),
@@ -480,7 +596,9 @@ class _SudokuBoardState extends State<SudokuBoard> {
       child: Opacity(
         opacity: dailyDisabled ? 0.45 : 1,
         child: Material(
-          color: isSelected ? color.withValues(alpha: 0.16) : Colors.transparent,
+          color: isSelected
+              ? color.withValues(alpha: 0.16)
+              : Colors.transparent,
           borderRadius: BorderRadius.circular(12),
           child: InkWell(
             borderRadius: BorderRadius.circular(12),
@@ -596,7 +714,7 @@ class _SudokuBoardState extends State<SudokuBoard> {
   Widget _numberConstWidget() {
     return Obx(() {
       if (!ctrl.isShow.value) {
-        return const SizedBox(height: 31);
+        return const SizedBox.shrink();
       }
 
       final theme = Theme.of(context);
@@ -617,8 +735,10 @@ class _SudokuBoardState extends State<SudokuBoard> {
             child: LayoutBuilder(
               builder: (context, constraints) {
                 const gap = 6.0;
-                final cellSize = ((constraints.maxWidth - gap * 9) / 10)
-                    .clamp(28.0, 46.0);
+                final cellSize = ((constraints.maxWidth - gap * 9) / 10).clamp(
+                  28.0,
+                  46.0,
+                );
 
                 return Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -639,7 +759,9 @@ class _SudokuBoardState extends State<SudokuBoard> {
                               alpha: 0.4,
                             );
                       final borderColor = isSelected
-                          ? (isDelete ? Colors.redAccent : Colors.lightBlueAccent)
+                          ? (isDelete
+                                ? Colors.redAccent
+                                : Colors.lightBlueAccent)
                           : theme.colorScheme.outlineVariant;
 
                       return GestureDetector(
@@ -686,7 +808,9 @@ class _SudokuBoardState extends State<SudokuBoard> {
                                           fontWeight: FontWeight.w600,
                                           color: isSelected
                                               ? Colors.white70
-                                              : theme.colorScheme.onSurfaceVariant,
+                                              : theme
+                                                    .colorScheme
+                                                    .onSurfaceVariant,
                                         ),
                                       ),
                                     ),
@@ -698,7 +822,7 @@ class _SudokuBoardState extends State<SudokuBoard> {
                                           fontWeight: FontWeight.w600,
                                           color: isDisabled
                                               ? theme.colorScheme.onSurface
-                                                  .withValues(alpha: 0.38)
+                                                    .withValues(alpha: 0.38)
                                               : isSelected
                                               ? Colors.white
                                               : theme.colorScheme.onSurface,
@@ -737,7 +861,9 @@ class _SudokuBoardState extends State<SudokuBoard> {
             return Container(
               decoration: BoxDecoration(
                 border: Border.all(
-                  color: ctrl.isActive.value ? Colors.green : Colors.white,
+                  color: ctrl.isActive.value
+                      ? Colors.green
+                      : Theme.of(context).colorScheme.outlineVariant,
                   width: 1.5,
                 ),
               ),
@@ -899,32 +1025,14 @@ class _SudokuBoardState extends State<SudokuBoard> {
         return Center(
           child: Text(
             notes.contains(number) ? number.toString() : '',
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w400,
-              color: Colors.grey,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
           ),
         );
       }),
-    );
-  }
-
-  Widget _menuWidget() {
-    return Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 460),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _helperCard(),
-            const SizedBox(height: 12),
-            _settingsCard(),
-            const SizedBox(height: 12),
-            _cleanNotesButton(),
-          ],
-        ),
-      ),
     );
   }
 
@@ -937,9 +1045,7 @@ class _SudokuBoardState extends State<SudokuBoard> {
       final muted = disabled || usedUp;
 
       return Material(
-        color: theme.colorScheme.surfaceContainerHighest.withValues(
-          alpha: 0.5,
-        ),
+        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
         borderRadius: BorderRadius.circular(14),
         child: InkWell(
           borderRadius: BorderRadius.circular(14),
@@ -965,7 +1071,9 @@ class _SudokuBoardState extends State<SudokuBoard> {
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 15,
-                          color: muted ? theme.colorScheme.onSurfaceVariant : null,
+                          color: muted
+                              ? theme.colorScheme.onSurfaceVariant
+                              : null,
                         ),
                       ),
                       const SizedBox(height: 2),
@@ -1131,8 +1239,10 @@ class _SudokuBoardState extends State<SudokuBoard> {
           width: 140,
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: Theme.of(context).colorScheme.surfaceContainerHighest,
             borderRadius: BorderRadius.circular(16),
+
+            border: Border.all(color: Theme.of(context).colorScheme.primary),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -1162,6 +1272,7 @@ class _SudokuBoardState extends State<SudokuBoard> {
                   final number = idx + 1;
                   final isNote = notes.contains(number);
                   final enabled = ctrl.isPickerNumberEnabled(row, col, number);
+                  final theme = Theme.of(context);
 
                   return GestureDetector(
                     onTap: enabled
@@ -1171,9 +1282,11 @@ class _SudokuBoardState extends State<SudokuBoard> {
                         : null,
                     child: Container(
                       decoration: BoxDecoration(
-                        color: Colors.grey.shade100,
+                        color: theme.colorScheme.surfaceContainerHigh,
                         border: Border.all(
-                          color: enabled ? Colors.blue : Colors.grey.shade300,
+                          color: enabled
+                              ? theme.colorScheme.primary
+                              : theme.colorScheme.outlineVariant,
                         ),
                         borderRadius: BorderRadius.circular(8),
                       ),
@@ -1184,10 +1297,12 @@ class _SudokuBoardState extends State<SudokuBoard> {
                             fontSize: 20,
                             fontWeight: FontWeight.bold,
                             color: !enabled
-                                ? Colors.grey.shade400
+                                ? theme.colorScheme.onSurface.withValues(
+                                    alpha: 0.38,
+                                  )
                                 : ctrl.noteMode.value && isNote
                                 ? Colors.orange
-                                : Colors.blue,
+                                : theme.colorScheme.primary,
                           ),
                         ),
                       ),
@@ -1208,15 +1323,26 @@ class _SudokuBoardState extends State<SudokuBoard> {
                   child: Container(
                     padding: const EdgeInsets.symmetric(vertical: 8),
                     decoration: BoxDecoration(
-                      color: Colors.red.shade50,
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.errorContainer,
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: const Row(
+                    child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.delete_outline, color: Colors.red, size: 18),
-                        SizedBox(width: 4),
-                        Text('پاک کردن', style: TextStyle(color: Colors.red)),
+                        Icon(
+                          Icons.delete_outline,
+                          color: Theme.of(context).colorScheme.error,
+                          size: 18,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          'پاک کردن',
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.error,
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -1235,7 +1361,7 @@ class _SudokuBoardState extends State<SudokuBoard> {
                   child: Container(
                     padding: const EdgeInsets.symmetric(vertical: 8),
                     decoration: BoxDecoration(
-                      color: Colors.orange.shade50,
+                      color: Colors.orange.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: const Row(
@@ -1309,12 +1435,15 @@ class _AnimatedBoardNumberState extends State<_AnimatedBoardNumber>
   @override
   void didUpdateWidget(_AnimatedBoardNumber oldWidget) {
     super.didUpdateWidget(oldWidget);
+    final animationsAllowed = !MediaQuery.of(context).disableAnimations;
     if (widget.celebratingNumber == widget.number &&
-        oldWidget.celebratingNumber != widget.number) {
+        oldWidget.celebratingNumber != widget.number &&
+        animationsAllowed) {
       _runCelebration();
     }
     if (widget.celebrateRegion &&
-        widget.regionCelebrationToken != _lastRegionToken) {
+        widget.regionCelebrationToken != _lastRegionToken &&
+        animationsAllowed) {
       _lastRegionToken = widget.regionCelebrationToken;
       _runCelebration();
     }
@@ -1437,8 +1566,10 @@ class _AnimatedCellContainerState extends State<_AnimatedCellContainer>
   @override
   void didUpdateWidget(_AnimatedCellContainer oldWidget) {
     super.didUpdateWidget(oldWidget);
+    final animationsAllowed = !MediaQuery.of(context).disableAnimations;
     if (widget.ctrl.isCellCelebrating(widget.row, widget.col) &&
-        widget.ctrl.celebrationToken.value != _lastRegionToken) {
+        widget.ctrl.celebrationToken.value != _lastRegionToken &&
+        animationsAllowed) {
       _lastRegionToken = widget.ctrl.celebrationToken.value;
       _controller.forward(from: 0);
     }
@@ -1479,8 +1610,8 @@ class _AnimatedCellContainerState extends State<_AnimatedCellContainer>
                 0.35 * (1 - mistakeProgress),
               )
             : (_controller.isAnimating || isCelebrating
-                ? _celebrationColor(progress)
-                : persistent);
+                  ? _celebrationColor(progress)
+                  : persistent);
 
         final shake = isMistakeAnimating
             ? sin(mistakeProgress * pi * 8) * 6 * (1 - mistakeProgress)
@@ -1518,11 +1649,7 @@ class _AnimatedCellContainerState extends State<_AnimatedCellContainer>
 /// نمایش عددی که هنگام تغییر، یک پرش کوتاه دارد و برای screen reader
 /// از طریق ناحیهٔ زنده اعلام می‌شود.
 class _BounceOnChange extends StatefulWidget {
-  const _BounceOnChange({
-    required this.value,
-    this.announcement,
-    super.key,
-  });
+  const _BounceOnChange({required this.value, this.announcement, super.key});
 
   final String value;
   final String? announcement;
@@ -1573,10 +1700,7 @@ class _BounceOnChangeState extends State<_BounceOnChange>
         scale: _scale,
         child: Text(
           widget.value,
-          style: const TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-          ),
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
       ),
     );
