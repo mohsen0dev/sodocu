@@ -270,31 +270,31 @@ class _SudokuBoardState extends State<SudokuBoard> {
         return SafeArea(
           child: SingleChildScrollView(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // دکمهٔ شروع بازی جدید؛ از نوار بالا به اینجا منتقل شده است.
-              FilledButton.icon(
-                onPressed: _confirmNewGame,
-                icon: const Icon(Icons.gamepad_outlined),
-                label: const Text('شروع بازی جدید'),
-                style: FilledButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // دکمهٔ شروع بازی جدید؛ از نوار بالا به اینجا منتقل شده است.
+                FilledButton.icon(
+                  onPressed: _confirmNewGame,
+                  icon: const Icon(Icons.gamepad_outlined),
+                  label: const Text('شروع بازی جدید'),
+                  style: FilledButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 16),
-              Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: Text(
-                  'حالت بازی',
-                  style: Theme.of(sheetContext).textTheme.titleLarge,
+                const SizedBox(height: 16),
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Text(
+                    'حالت بازی',
+                    style: Theme.of(sheetContext).textTheme.titleLarge,
+                  ),
                 ),
-              ),
-              _modeWidget(),
-              const SizedBox(height: 12),
-              _difficultyWidget(),
-            ],
-          ),
+                _modeWidget(),
+                const SizedBox(height: 12),
+                _difficultyWidget(),
+              ],
+            ),
           ),
         );
       },
@@ -391,6 +391,11 @@ class _SudokuBoardState extends State<SudokuBoard> {
         elevation: 0,
         actions: [
           IconButton(
+            tooltip: 'شروع بازی جدید',
+            onPressed: () => _confirmNewGame(),
+            icon: const Icon(Icons.gamepad_outlined),
+          ),
+          IconButton(
             tooltip: 'رکوردها',
             onPressed: () => Get.to(const RecordsPage()),
             icon: const Icon(Icons.emoji_events_outlined),
@@ -449,6 +454,7 @@ class _SudokuBoardState extends State<SudokuBoard> {
                     spacing: 20,
                     children: [
                       _gameInfoWidget(),
+                      _progressBarWidget(),
                       _modeQuickButton(),
                       _boardWidget(),
                     ],
@@ -516,6 +522,41 @@ class _SudokuBoardState extends State<SudokuBoard> {
         ),
       ),
     );
+  }
+
+  Widget _progressBarWidget() {
+    return Obx(() {
+      final completed = ctrl.completedCells.value;
+      final total = 81;
+      final percentage = total > 0 ? (completed / total) * 100 : 0;
+      final theme = Theme.of(context);
+
+      return ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 460),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            LinearProgressIndicator(
+              value: percentage / 100,
+              minHeight: 8,
+              borderRadius: BorderRadius.circular(4),
+              backgroundColor: theme.colorScheme.surfaceContainerHighest,
+              valueColor: AlwaysStoppedAnimation<Color>(
+                theme.colorScheme.primary,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              '$completed از $total خانه پر شده  (${percentage.toStringAsFixed(1)}%)',
+              style: TextStyle(
+                fontSize: 11,
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ),
+      );
+    });
   }
 
   Widget _infoCard({
@@ -1323,9 +1364,7 @@ class _SudokuBoardState extends State<SudokuBoard> {
                   child: Container(
                     padding: const EdgeInsets.symmetric(vertical: 8),
                     decoration: BoxDecoration(
-                      color: Theme.of(
-                        context,
-                      ).colorScheme.errorContainer,
+                      color: Theme.of(context).colorScheme.errorContainer,
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Row(

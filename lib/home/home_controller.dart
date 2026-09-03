@@ -79,6 +79,12 @@ class HomeController extends GetxController {
   /// بهترین رکورد محلی بر اساس حالت و سطح دشواری.
   final RxMap<String, int> bestTimes = <String, int>{}.obs;
 
+  /// تعداد خانه‌های پر شده (غیرصفر)
+  final RxInt completedCells = 0.obs;
+
+  /// تعداد خانه‌های خالی باقی‌مانده
+  final RxInt emptyCells = 81.obs;
+
   /// آمار کلی برای داشبورد رکوردها.
   final RxInt gamesCompleted = 0.obs;
   final RxInt totalCompletedSeconds = 0.obs;
@@ -919,6 +925,7 @@ class HomeController extends GetxController {
       showError('عدد $number در این خانه قابل قرار نیست!');
       return;
     }
+    _updateProgress();
 
     _saveToHistory();
     if (previousValue != 0) {
@@ -941,6 +948,7 @@ class HomeController extends GetxController {
     if (isSolved()) {
       _completeGame();
     }
+    _updateProgress();
   }
 
   /// افزودن یا حذف یک کاندیدا از خانهٔ انتخاب‌شده.
@@ -1100,6 +1108,7 @@ class HomeController extends GetxController {
         removeInvalidNotes();
         _requestSave();
         _showMessage('عدد حذف شد', Colors.red, duration: 1);
+        _updateProgress();
       }
       return;
     }
@@ -1119,6 +1128,7 @@ class HomeController extends GetxController {
       _syncCompletedUnits();
       removeInvalidNotes();
       _requestSave();
+      _updateProgress();
       return;
     }
 
@@ -1158,6 +1168,7 @@ class HomeController extends GetxController {
     if (isSolved()) {
       _completeGame();
     }
+    _updateProgress();
   }
 
   /// تابع برای حذف عدد از یک خانه (برای دکمه حذف در پیکر)
@@ -1180,6 +1191,7 @@ class HomeController extends GetxController {
       removeInvalidNotes();
       _requestSave();
       _showMessage('عدد حذف شد', Colors.red, duration: 1);
+      _updateProgress();
     }
   }
 
@@ -1320,6 +1332,7 @@ class HomeController extends GetxController {
           _currentRetryCount++;
         }
       }
+      _updateProgress();
 
       if (!isUnique) {
         showError('امکان تولید پازل یکتا وجود ندارد');
@@ -1366,6 +1379,7 @@ class HomeController extends GetxController {
       _startTimer();
       _requestSave();
       _showMessage('بازی جدید شروع شد!', Colors.green);
+      _updateProgress();
     } catch (e) {
       showError('خطا در شروع بازی: $e');
     } finally {
@@ -1664,6 +1678,24 @@ class HomeController extends GetxController {
       celebratingUnits.removeAll(newUnits);
       cells.refresh();
     });
+  }
+
+  // ==================== Progress Tracking ====================
+
+  void _updateProgress() {
+    int completed = 0;
+    int empty = 0;
+    for (int r = 0; r < 9; r++) {
+      for (int c = 0; c < 9; c++) {
+        if (cells[r][c].value != 0) {
+          completed++;
+        } else {
+          empty++;
+        }
+      }
+    }
+    completedCells.value = completed;
+    emptyCells.value = empty;
   }
 
   // ==================== پیام‌ها ====================

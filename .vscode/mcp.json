@@ -1,0 +1,9 @@
+{
+  "servers": {
+    "graphify": {
+      "type": "stdio",
+      "command": "C:\\Users\\mohse\\.local\\bin\\graphify-mcp.exe",
+      "args": ["--graph", "d:\\flutter_project\\sodocu\\graphify-out\\graph.json", "--transport", "stdio"]
+    }
+  }
+}
