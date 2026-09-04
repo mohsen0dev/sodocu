@@ -132,8 +132,6 @@ class _SudokuBoardState extends State<SudokuBoard> {
 
   void _selectNumber(int number) {
     ctrl.setNumber(number);
-    // بازسازی مستقیم والد، مستقل از زمان‌بندی واکنش‌گر GetX.
-    if (mounted) setState(() {});
   }
 
   void _updateCell(int row, int col, int value) {
@@ -920,132 +918,140 @@ class _SudokuBoardState extends State<SudokuBoard> {
 
                   // خانه‌های ثابت (پازل اولیه)
                   if (ctrl.puzzle != null && ctrl.puzzle![row][col] != 0) {
-                    return Obx(() {
-                      final cellValue = ctrl.cells[row][col].value;
-                      final highlight = ctrl.selectedNumber.value == cellValue;
-                      return _AnimatedCellContainer(
-                        row: row,
-                        col: col,
-                        ctrl: ctrl,
-                        borderColor: highlight
-                            ? Colors.orange
-                            : Colors.grey.shade500,
-                        borderWidth: highlight ? 3 : 0.5,
-                        backgroundColor: highlight
-                            ? Colors.orange.withValues(alpha: 0.2)
-                            : null,
-                        child: Center(
-                          child: _AnimatedBoardNumber(
-                            number: cellValue,
-                            celebratingNumber: ctrl.celebratingNumber.value,
-                            celebrateRegion: ctrl.isCellCelebrating(row, col),
-                            regionCelebrationToken: ctrl.celebrationToken.value,
-                            fontSize: 28,
-                            fontWeight: FontWeight.w500,
-                            color: ctrl.getCellTextColor(row, col),
+                    return RepaintBoundary(
+                      child: Obx(() {
+                        final cellValue = ctrl.cells[row][col].value;
+                        final highlight = ctrl.selectedNumber.value == cellValue;
+                        return RepaintBoundary(
+                          child: _AnimatedCellContainer(
+                            row: row,
+                            col: col,
+                            ctrl: ctrl,
+                            borderColor: highlight
+                                ? Colors.orange
+                                : Colors.grey.shade500,
+                            borderWidth: highlight ? 3 : 0.5,
+                            backgroundColor: highlight
+                                ? Colors.orange.withValues(alpha: 0.2)
+                                : null,
+                            child: Center(
+                              child: _AnimatedBoardNumber(
+                                number: cellValue,
+                                celebratingNumber: ctrl.celebratingNumber.value,
+                                celebrateRegion: ctrl.isCellCelebrating(row, col),
+                                regionCelebrationToken: ctrl.celebrationToken.value,
+                                fontSize: 28,
+                                fontWeight: FontWeight.w500,
+                                color: ctrl.getCellTextColor(row, col),
+                              ),
+                            ),
                           ),
-                        ),
-                      );
-                    });
+                        );
+                      }),
+                    );
                   }
 
                   // خانه‌های قابل ویرایش
-                  return GestureDetector(
-                    onTapUp: (details) {
-                      ctrl.selectCell(row, col);
-                      if (ctrl.isShow.value) {
-                        // حالت ورود مستقیم؛ در حالت یادداشت فقط کاندیدا تغییر می‌کند.
-                        if (ctrl.noteMode.value) {
-                          ctrl.setCellNote(row, col);
-                        } else {
-                          ctrl.setCellValue(row, col);
-                          // اگر عدد به حداکثر استفاده رسید، انتخاب را بردار
-                          if (ctrl.selectedNumber.value != 0 &&
-                              ctrl.numberUsage[ctrl.selectedNumber.value] ==
-                                  9) {
-                            ctrl.selectedNumber.value = 0;
+                  return RepaintBoundary(
+                    child: GestureDetector(
+                      onTapUp: (details) {
+                        ctrl.selectCell(row, col);
+                        if (ctrl.isShow.value) {
+                          // حالت ورود مستقیم؛ در حالت یادداشت فقط کاندیدا تغییر می‌کند.
+                          if (ctrl.noteMode.value) {
+                            ctrl.setCellNote(row, col);
+                          } else {
+                            ctrl.setCellValue(row, col);
+                            // اگر عدد به حداکثر استفاده رسید، انتخاب را بردار
+                            if (ctrl.selectedNumber.value != 0 &&
+                                ctrl.numberUsage[ctrl.selectedNumber.value] ==
+                                    9) {
+                              ctrl.selectedNumber.value = 0;
+                            }
                           }
+                        } else {
+                          // حالت پیکر
+                          _showNumberPicker(
+                            context,
+                            details.globalPosition,
+                            row,
+                            col,
+                          );
                         }
-                      } else {
-                        // حالت پیکر
-                        _showNumberPicker(
-                          context,
-                          details.globalPosition,
-                          row,
-                          col,
-                        );
-                      }
-                    },
-                    child: Obx(() {
-                      final hasNotes = ctrl.cells[row][col].notes.isNotEmpty;
-                      final value = ctrl.cells[row][col].value;
-                      final isSelectedCell =
-                          ctrl.selectedRow == row && ctrl.selectedCol == col;
-                      final isSelectedNumber =
-                          value != 0 && ctrl.selectedNumber.value == value;
+                      },
+                      child: RepaintBoundary(
+                        child: Obx(() {
+                          final hasNotes = ctrl.cells[row][col].notes.isNotEmpty;
+                          final value = ctrl.cells[row][col].value;
+                          final isSelectedCell =
+                              ctrl.selectedRow == row && ctrl.selectedCol == col;
+                          final isSelectedNumber =
+                              value != 0 && ctrl.selectedNumber.value == value;
 
-                      return _AnimatedCellContainer(
-                        row: row,
-                        col: col,
-                        ctrl: ctrl,
-                        mistakeFlashToken: ctrl.mistakeFlashToken.value,
-                        isMistake: ctrl.isMistakeCell(row, col),
-                        borderColor: ctrl.selectedNumber.value == value
-                            ? Colors.orange
-                            : Colors.grey.shade300,
-                        borderWidth: ctrl.selectedNumber.value == value
-                            ? 1.5
-                            : 1,
-                        backgroundColor: isSelectedCell
-                            ? Colors.amber.withValues(alpha: 0.12)
-                            : isSelectedNumber
-                            ? Colors.blue.withValues(alpha: 0.18)
-                            : null,
-                        child: Stack(
-                          fit: StackFit.expand,
-                          children: [
-                            if (value != 0)
-                              Center(
-                                child: _AnimatedBoardNumber(
-                                  number: value,
-                                  celebratingNumber:
-                                      ctrl.celebratingNumber.value,
-                                  celebrateRegion: ctrl.isCellCelebrating(
-                                    row,
-                                    col,
-                                  ),
-                                  regionCelebrationToken:
-                                      ctrl.celebrationToken.value,
-                                  fontSize: 30,
-                                  fontWeight: FontWeight.w700,
-                                  color: ctrl.getCellTextColor(row, col),
-                                ),
-                              )
-                            else if (hasNotes)
-                              _buildNotesGrid(ctrl.cells[row][col].notes),
-                            if (hasNotes)
-                              Positioned(
-                                top: 0,
-                                right: 0,
-                                child: Tooltip(
-                                  message: 'حذف همه یادداشت‌ها',
-                                  child: InkWell(
-                                    onTap: () => ctrl.clearNotes(row, col),
-                                    child: const Padding(
-                                      padding: EdgeInsets.all(1),
-                                      child: Icon(
-                                        Icons.clear_all,
-                                        size: 13,
-                                        color: Colors.redAccent,
+                          return _AnimatedCellContainer(
+                            row: row,
+                            col: col,
+                            ctrl: ctrl,
+                            mistakeFlashToken: ctrl.mistakeFlashToken.value,
+                            isMistake: ctrl.isMistakeCell(row, col),
+                            borderColor: ctrl.selectedNumber.value == value
+                                ? Colors.orange
+                                : Colors.grey.shade300,
+                            borderWidth: ctrl.selectedNumber.value == value
+                                ? 1.5
+                                : 1,
+                            backgroundColor: isSelectedCell
+                                ? Colors.amber.withValues(alpha: 0.12)
+                                : isSelectedNumber
+                                ? Colors.blue.withValues(alpha: 0.18)
+                                : null,
+                            child: Stack(
+                              fit: StackFit.expand,
+                              children: [
+                                if (value != 0)
+                                  Center(
+                                    child: _AnimatedBoardNumber(
+                                      number: value,
+                                      celebratingNumber:
+                                          ctrl.celebratingNumber.value,
+                                      celebrateRegion: ctrl.isCellCelebrating(
+                                        row,
+                                        col,
+                                      ),
+                                      regionCelebrationToken:
+                                          ctrl.celebrationToken.value,
+                                      fontSize: 30,
+                                      fontWeight: FontWeight.w700,
+                                      color: ctrl.getCellTextColor(row, col),
+                                    ),
+                                  )
+                                else if (hasNotes)
+                                  _buildNotesGrid(ctrl.cells[row][col].notes),
+                                if (hasNotes)
+                                  Positioned(
+                                    top: 0,
+                                    right: 0,
+                                    child: Tooltip(
+                                      message: 'حذف همه یادداشت‌ها',
+                                      child: InkWell(
+                                        onTap: () => ctrl.clearNotes(row, col),
+                                        child: const Padding(
+                                          padding: EdgeInsets.all(1),
+                                          child: Icon(
+                                            Icons.clear_all,
+                                            size: 13,
+                                            color: Colors.redAccent,
+                                          ),
+                                        ),
                                       ),
                                     ),
                                   ),
-                                ),
-                              ),
-                          ],
-                        ),
-                      );
-                    }),
+                              ],
+                            ),
+                          );
+                        }),
+                      ),
+                    ),
                   );
                 },
               ),
