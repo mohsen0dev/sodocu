@@ -26,6 +26,7 @@ class _SudokuBoardState extends State<SudokuBoard> {
   final HomeController ctrl = Get.find<HomeController>();
 
   // ── state مربوط به number picker ──
+  final GlobalKey _boardStackKey = GlobalKey();
   Offset? _pickerPosition;
   bool _showPicker = false;
   int? _selectedRow, _selectedCol;
@@ -141,15 +142,29 @@ class _SudokuBoardState extends State<SudokuBoard> {
 
     final media = MediaQuery.of(context);
     const pickerSize = 140.0;
-    double left = position.dx;
-    double top = position.dy - 40;
 
-    if (left + pickerSize > media.size.width) {
-      left = position.dx - pickerSize;
+    // position در مختصات جهانی است؛ چون picker داخل Stackِ body قرار می‌گیرد،
+    // باید به مختصات محلی تبدیل شود تا دقیقاً کنار خانهٔ لمس‌شده و داخل
+    // مرزهای دیده‌شده (مخصوصاً در پنجره‌های دسکتاپ) باشد.
+    var boardSize = media.size;
+    var local = position;
+    final boardObject = _boardStackKey.currentContext?.findRenderObject();
+    if (boardObject is RenderBox && boardObject.hasSize) {
+      local = boardObject.globalToLocal(position);
+      boardSize = boardObject.size;
     }
-    if (top + pickerSize > media.size.height) {
-      top = position.dy - pickerSize - 10;
+
+    double left = local.dx;
+    double top = local.dy - 40;
+
+    if (left + pickerSize > boardSize.width) {
+      left = local.dx - pickerSize;
     }
+    if (left < 0) left = 0;
+    if (top + pickerSize > boardSize.height) {
+      top = local.dy - pickerSize - 10;
+    }
+    if (top < 0) top = 0;
 
     setState(() {
       _pickerPosition = Offset(left, top);
@@ -238,6 +253,7 @@ class _SudokuBoardState extends State<SudokuBoard> {
             }
           },
           child: Stack(
+            key: _boardStackKey,
             textDirection: TextDirection.rtl,
             children: [
               Padding(
@@ -440,6 +456,7 @@ class _SudokuBoardState extends State<SudokuBoard> {
       left: _pickerPosition!.dx,
       top: _pickerPosition!.dy,
       child: Material(
+        key: const ValueKey('number-picker'),
         elevation: 12,
         borderRadius: BorderRadius.circular(16),
         child: Container(

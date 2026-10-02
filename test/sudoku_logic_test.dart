@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:get/get.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sodocu/home/home_controller.dart';
+import 'package:sodocu/home/services/sudoku_generator.dart';
 
 /// یک جدول سودوکوی حل‌شدهٔ معتبر و ثابت.
 ///
@@ -54,21 +55,19 @@ void main() {
   });
 
   group('hasUniqueSolution', () {
-    final controller = HomeController();
-
     test('جدول کامل حل‌شده فقط یک جواب دارد', () {
-      expect(controller.hasUniqueSolution(solvedBoard), isTrue);
+      expect(SudokuGenerator.hasUniqueSolution(solvedBoard), isTrue);
     });
 
     test('جدول حل‌شده با یک خانهٔ خالی فقط یک جواب دارد', () {
       final puzzle = solvedBoard.map((row) => [...row]).toList();
       puzzle[0][0] = 0;
-      expect(controller.hasUniqueSolution(puzzle), isTrue);
+      expect(SudokuGenerator.hasUniqueSolution(puzzle), isTrue);
     });
 
     test('جدول کاملاً خالی بیش از یک جواب دارد', () {
       final empty = List.generate(9, (_) => List.filled(9, 0));
-      expect(controller.hasUniqueSolution(empty), isFalse);
+      expect(SudokuGenerator.hasUniqueSolution(empty), isFalse);
     });
 
     test('جدول بدون جواب (تضاد در خانهٔ اول) یکتا محسوب نمی‌شود', () {
@@ -79,22 +78,23 @@ void main() {
       }
       // اما ستون ۰ از قبل ۹ دارد؛ پس هیچ عددی در (0,0) جا نمی‌شود.
       invalid[1][0] = 9;
-      expect(controller.hasUniqueSolution(invalid), isFalse);
+      expect(SudokuGenerator.hasUniqueSolution(invalid), isFalse);
     });
   });
 
   group('generatePuzzle', () {
-    final controller = HomeController();
-
     test('با ۸۱ سرنخ، جدول حل‌شده بدون تغییر برمی‌گردد', () {
-      expect(controller.generatePuzzle(solvedBoard, 81), equals(solvedBoard));
+      expect(
+        SudokuGenerator.generatePuzzle(solvedBoard, 81),
+        equals(solvedBoard),
+      );
     });
 
     test('برای هر سطح دشواری پازل معتبر و یکتا تولید می‌کند', () {
       for (final entry in HomeController.cluesCount.entries) {
         final difficulty = entry.key;
         final clues = entry.value;
-        final puzzle = controller.generatePuzzle(solvedBoard, clues);
+        final puzzle = SudokuGenerator.generatePuzzle(solvedBoard, clues);
         final clueCount = countClues(puzzle);
 
         expect(
@@ -108,7 +108,7 @@ void main() {
           reason: '$difficulty نباید خیلی کمتر از $clues سرنخ بماند',
         );
         expect(
-          controller.hasUniqueSolution(puzzle),
+          SudokuGenerator.hasUniqueSolution(puzzle),
           isTrue,
           reason: 'پازل $difficulty باید جواب یکتا داشته باشد',
         );
@@ -305,7 +305,7 @@ void main() {
       final second = controller.puzzle!.map((r) => [...r]).toList();
 
       expect(first, equals(second));
-      expect(controller.hasUniqueSolution(controller.puzzle!), isTrue);
+      expect(SudokuGenerator.hasUniqueSolution(controller.puzzle!), isTrue);
     });
 
     test('پازل روزانه با سطح ثابت تولید می‌شود', () async {

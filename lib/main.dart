@@ -6,7 +6,9 @@ import 'package:sodocu/home/home_bindings.dart';
 // import 'package:window_manager/window_manager.dart';
 
 void main() async {
+
   WidgetsFlutterBinding.ensureInitialized();
+
   // await windowManager.ensureInitialized();
 
   // WindowOptions windowOptions = const WindowOptions(
@@ -29,6 +31,7 @@ class SudokuApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GetMaterialApp(
+      
       debugShowCheckedModeBanner: false,
       textDirection: TextDirection.rtl,
 

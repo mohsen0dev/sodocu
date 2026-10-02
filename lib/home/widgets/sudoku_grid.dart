@@ -153,6 +153,7 @@ class _EditableCell extends StatelessWidget {
   Widget build(BuildContext context) {
     return RepaintBoundary(
       child: GestureDetector(
+        key: ValueKey('cell-$row-$col'),
         onTapUp: (details) {
           controller.selectCell(row, col);
           if (controller.isShow.value) {
