@@ -1,7 +1,6 @@
 import 'dart:math' show pi, sin;
 
 import 'package:flutter/material.dart';
-import 'package:sodocu/theme/sudoku_colors.dart';
 
 import '../home_controller.dart';
 
@@ -102,9 +101,7 @@ class _AnimatedBoardNumberState extends State<AnimatedBoardNumber>
                 shadows: isAnimating
                     ? [
                         Shadow(
-                          color: SudokuColors.of(context).warning.withValues(
-                            alpha: 0.6,
-                          ),
+                          color: Colors.amber.shade700.withValues(alpha: 0.6),
                           blurRadius: 8,
                         ),
                       ]
@@ -127,6 +124,8 @@ class AnimatedCellContainer extends StatefulWidget {
     required this.row,
     required this.col,
     required this.ctrl,
+    required this.borderColor,
+    required this.borderWidth,
     this.backgroundColor,
     this.mistakeFlashToken = 0,
     this.isMistake = false,
@@ -137,6 +136,8 @@ class AnimatedCellContainer extends StatefulWidget {
   final int row;
   final int col;
   final HomeController ctrl;
+  final Color borderColor;
+  final double borderWidth;
   final Color? backgroundColor;
   final int mistakeFlashToken;
   final bool isMistake;
@@ -166,13 +167,11 @@ class _AnimatedCellContainerState extends State<AnimatedCellContainer>
     );
   }
 
-  Color _persistentBackground(SudokuColors colors) {
-    final Color? completed = widget.ctrl.isUnitCompleted(
-          widget.row,
-          widget.col,
-        )
-        ? colors.completedUnit.withValues(alpha: 0.18)
-        : null;
+  Color _persistentBackground() {
+    final completed = widget.ctrl.getCompletedUnitBackground(
+      widget.row,
+      widget.col,
+    );
     final base = widget.backgroundColor;
     if (completed == null) {
       return base ?? Colors.transparent;
@@ -181,15 +180,13 @@ class _AnimatedCellContainerState extends State<AnimatedCellContainer>
     return Color.lerp(base, completed, 0.75) ?? completed;
   }
 
-  Color _peakBackground(SudokuColors colors) {
-    final done = widget.ctrl.isUnitCompleted(widget.row, widget.col);
-    if (!done) return colors.warning.withValues(alpha: 0.3);
-    return colors.completedUnit.withValues(alpha: 0.38);
+  Color _peakBackground() {
+    return widget.ctrl.getCompletedUnitPeakBackground(widget.row, widget.col);
   }
 
-  Color _celebrationColor(double progress, SudokuColors colors) {
-    final persistent = _persistentBackground(colors);
-    final peak = _peakBackground(colors);
+  Color _celebrationColor(double progress) {
+    final persistent = _persistentBackground();
+    final peak = _peakBackground();
     final pulse = sin(progress * pi);
     return Color.lerp(persistent, peak, pulse * 0.95) ?? persistent;
   }
@@ -221,7 +218,6 @@ class _AnimatedCellContainerState extends State<AnimatedCellContainer>
 
   @override
   Widget build(BuildContext context) {
-    final colors = SudokuColors.of(context);
     return AnimatedBuilder(
       animation: Listenable.merge([_controller, _mistakeController]),
       builder: (context, child) {
@@ -233,16 +229,16 @@ class _AnimatedCellContainerState extends State<AnimatedCellContainer>
         );
         final isMistakeAnimating = _mistakeController.isAnimating;
 
-        final persistent = _persistentBackground(colors);
+        final persistent = _persistentBackground();
         final base = persistent == Colors.transparent ? null : persistent;
         final bgColor = isMistakeAnimating
             ? Color.lerp(
                 base ?? Colors.transparent,
-                colors.danger,
+                Colors.red,
                 0.35 * (1 - mistakeProgress),
               )
             : (_controller.isAnimating || isCelebrating
-                  ? _celebrationColor(progress, colors)
+                  ? _celebrationColor(progress)
                   : persistent);
 
         final shake = isMistakeAnimating
@@ -253,11 +249,15 @@ class _AnimatedCellContainerState extends State<AnimatedCellContainer>
           offset: Offset(shake, 0),
           child: Container(
             decoration: BoxDecoration(
+              border: Border.all(
+                color: isMistakeAnimating ? Colors.red : widget.borderColor,
+                width: isMistakeAnimating ? 2 : widget.borderWidth,
+              ),
               color: bgColor == Colors.transparent ? null : bgColor,
               boxShadow: _controller.isAnimating
                   ? [
                       BoxShadow(
-                        color: colors.warning.withValues(
+                        color: Colors.amber.withValues(
                           alpha: 0.35 * (1 - progress),
                         ),
                         blurRadius: 10,

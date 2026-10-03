@@ -29,7 +29,7 @@ flutter:
   assets:
     - assets/images/
 
-  fonts:
-    - family: Vazirmatn
-      fonts:
-        - asset: assets/fonts/vazir.ttf
+  # fonts:
+  #   - family: Schyler
+  #     fonts:
+  #       - asset: fonts/Schyler-Regular.ttf

@@ -9,9 +9,12 @@ import 'package:sodocu/home/services/game_persistence.dart';
 import 'package:sodocu/home/services/game_timer.dart';
 import 'package:sodocu/home/services/sudoku_generator.dart';
 import 'package:sodocu/utils/jalali.dart';
-import 'package:sodocu/home/game_types.dart';
 
-export 'package:sodocu/home/game_types.dart';
+/// سطح دشواری بازی سودوکو
+enum Difficulty { easy, medium, hard }
+
+/// حالت اجرای بازی؛ همه داده‌ها فقط روی همین دستگاه ذخیره می‌شوند.
+enum GameMode { classic, timed, noHints, daily, record }
 
 /// مدل داده برای هر خانه
 class CellData implements CellLike {
@@ -114,9 +117,8 @@ class HomeController extends GetxController {
   final Set<int> _completedCols = {};
   final Set<int> _completedBoxes = {};
 
-  /// خانهٔ انتخاب‌شده توسط کاربر (برای هایلایت هم‌خانه‌ها/هم‌ردیف‌ها)
-  final RxnInt selectedRow = RxnInt();
-  final RxnInt selectedCol = RxnInt();
+  int? selectedRow;
+  int? selectedCol;
 
   // شمارش تعداد استفاده از هر عدد 1 تا 9
   RxMap<int, int> numberUsage = RxMap<int, int>({
@@ -548,6 +550,14 @@ class HomeController extends GetxController {
     GameMode.record => Icons.emoji_events_outlined,
   };
 
+  static Color gameModeColor(GameMode mode) => switch (mode) {
+    GameMode.classic => Colors.blue,
+    GameMode.timed => Colors.deepOrange,
+    GameMode.noHints => Colors.purple,
+    GameMode.daily => Colors.teal,
+    GameMode.record => Colors.amber,
+  };
+
   String get modeTitle => gameModeLabel(gameMode.value);
 
   String get dailyDateLabel => formatJalaliFull(DateTime.now());
@@ -887,8 +897,8 @@ class HomeController extends GetxController {
   }
 
   void selectCell(int r, int c) {
-    selectedRow.value = r;
-    selectedCol.value = c;
+    selectedRow = r;
+    selectedCol = c;
     update();
   }
 
@@ -1365,8 +1375,24 @@ class HomeController extends GetxController {
     return val == 0 ? '' : val.toString();
   }
 
-  /// آیا عدد [number] نُه بار روی تخته قرار گرفته است؟
-  bool isNumberFullyPlaced(int number) => _countNumberOnBoard(number) >= 9;
+  Color getCellTextColor(int row, int col) {
+    final value = cells[row][col].value;
+    if (value == 0) {
+      return Colors.transparent;
+    }
+    if (_isNumberFullyPlaced(value)) {
+      return Get.isDarkMode ? Colors.grey.shade300 : Colors.grey.shade800;
+    }
+    if (cells[row][col].isFixed) {
+      return Colors.grey.shade400;
+    }
+    if (!isActive.value && !isRecordMode) {
+      return Colors.blue;
+    }
+    return isCorrect(row, col, value) ? Colors.blue : Colors.red;
+  }
+
+  bool _isNumberFullyPlaced(int number) => _countNumberOnBoard(number) >= 9;
 
   int _countNumberOnBoard(int number) {
     int count = 0;
@@ -1397,12 +1423,22 @@ class HomeController extends GetxController {
         celebratingUnits.contains('box-${boxIndex(row, col)}');
   }
 
-  /// آیا ردیف، ستون یا بلوکِ خانهٔ [row],[col] کامل شده است؟
-  bool isUnitCompleted(int row, int col) {
-    return
+  Color? getCompletedUnitBackground(int row, int col) {
+    final done =
         _completedRows.contains(row) ||
         _completedCols.contains(col) ||
         _completedBoxes.contains(boxIndex(row, col));
+    if (!done) return null;
+    return Colors.teal.withValues(alpha: 0.18);
+  }
+
+  Color getCompletedUnitPeakBackground(int row, int col) {
+    final done =
+        _completedRows.contains(row) ||
+        _completedCols.contains(col) ||
+        _completedBoxes.contains(boxIndex(row, col));
+    if (!done) return Colors.amber.withValues(alpha: 0.3);
+    return Colors.teal.withValues(alpha: 0.38);
   }
 
   bool _isUnitValuesComplete(List<int> values) {

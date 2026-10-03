@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:sodocu/home/home.dart';
 import 'package:sodocu/home/home_bindings.dart';
-import 'package:sodocu/theme/app_theme.dart';
 // import 'package:sodocu/home/home_page.dart';
 // import 'package:window_manager/window_manager.dart';
 
 void main() async {
+
   WidgetsFlutterBinding.ensureInitialized();
 
   // await windowManager.ensureInitialized();
@@ -31,13 +31,19 @@ class SudokuApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GetMaterialApp(
+      
       debugShowCheckedModeBanner: false,
       textDirection: TextDirection.rtl,
 
       themeMode: ThemeMode.dark,
-      theme: lightTheme,
-      darkTheme: darkTheme,
+      darkTheme: ThemeData.dark().copyWith(
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: Colors.blue,
+          brightness: Brightness.dark,
+        ),
+      ),
 
+      // home: SudokuBoard(),
       home: SudokuBoard(),
       initialBinding: HomeBindings(),
     );

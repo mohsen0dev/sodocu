@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:sodocu/home/records_page.dart';
-import 'package:sodocu/theme/sudoku_colors.dart';
 
 import 'home_controller.dart';
 import 'widgets/board_animations.dart';
@@ -332,7 +331,7 @@ class _SudokuBoardState extends State<SudokuBoard> {
                 value: ctrl.gameMode.value == GameMode.timed
                     ? ctrl.formatDuration(ctrl.remainingSeconds.value)
                     : ctrl.formatDuration(ctrl.elapsedSeconds.value),
-                color: Theme.of(context).colorScheme.primary,
+                color: Colors.blue,
               ),
             ),
             const SizedBox(width: 12),
@@ -350,8 +349,8 @@ class _SudokuBoardState extends State<SudokuBoard> {
                   ),
                   color:
                       ctrl.mistakes.value >= HomeController.maxMistakes - 1
-                          ? SudokuColors.of(context).danger
-                          : SudokuColors.of(context).warning,
+                          ? Colors.red
+                          : Colors.deepOrange,
                 ),
               ),
               const SizedBox(width: 12),
@@ -363,7 +362,7 @@ class _SudokuBoardState extends State<SudokuBoard> {
                 value: ctrl.bestTimes[ctrl.recordKey] == null
                     ? '--:--'
                     : ctrl.formatDuration(ctrl.bestTimes[ctrl.recordKey]!),
-                color: SudokuColors.of(context).record,
+                color: Colors.amber,
               ),
             ),
           ],
@@ -472,12 +471,12 @@ class _SudokuBoardState extends State<SudokuBoard> {
             mainAxisSize: MainAxisSize.min,
             children: [
               if (ctrl.noteMode.value)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
+                const Padding(
+                  padding: EdgeInsets.only(bottom: 8),
                   child: Text(
                     'حالت یادداشت',
                     style: TextStyle(
-                      color: Theme.of(context).colorScheme.primary,
+                      color: Colors.blue,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -523,7 +522,7 @@ class _SudokuBoardState extends State<SudokuBoard> {
                                 ? theme.colorScheme.onSurface
                                       .withValues(alpha: 0.38)
                                 : ctrl.noteMode.value && isNote
-                                ? SudokuColors.of(context).hint
+                                ? Colors.orange
                                 : theme.colorScheme.primary,
                           ),
                         ),
@@ -581,25 +580,17 @@ class _SudokuBoardState extends State<SudokuBoard> {
                   child: Container(
                     padding: const EdgeInsets.symmetric(vertical: 8),
                     decoration: BoxDecoration(
-                      color: SudokuColors.of(context).hint.withValues(
-                        alpha: 0.15,
-                      ),
+                      color: Colors.orange.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: Row(
+                    child: const Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(
-                          Icons.clear_all,
-                          color: SudokuColors.of(context).hint,
-                          size: 18,
-                        ),
-                        const SizedBox(width: 4),
+                        Icon(Icons.clear_all, color: Colors.orange, size: 18),
+                        SizedBox(width: 4),
                         Text(
                           'حذف یادداشت‌ها',
-                          style: TextStyle(
-                            color: SudokuColors.of(context).hint,
-                          ),
+                          style: TextStyle(color: Colors.orange),
                         ),
                       ],
                     ),
