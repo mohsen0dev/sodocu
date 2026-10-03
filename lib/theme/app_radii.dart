@@ -1,7 +1,4 @@
-import 'package:flutter/material.dart';
-
-/// Rounded corner radii used across the app.
-
+// گوشه‌های گرد استفاده‌شده در سراسر برنامه.
 class AppRadii {
   AppRadii._();
 
@@ -13,10 +10,3 @@ class AppRadii {
   static const double board = 14;
   static const double tweet = 9999;
 }
-
-/// nedeniyle görünümü kullanılmayan dosya, doğrudan başlarına oluşturulabilir.
-///
-///
-///statics kullanılması ℹ️)
-///
-/// Hazırlayan: Siyah Beyaz

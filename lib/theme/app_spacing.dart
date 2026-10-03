@@ -1,5 +1,4 @@
 /// Unit spacing used across the app.
-
 class AppSpacing {
   AppSpacing._();
 

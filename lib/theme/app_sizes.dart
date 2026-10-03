@@ -1,5 +1,4 @@
 /// Board and card size limits.
-
 class AppSizes {
   AppSizes._();
 

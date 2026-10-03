@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:sodocu/theme/sudoku_colors.dart';
 
 import 'home_controller.dart';
 
@@ -256,7 +257,7 @@ class RecordsPage extends StatelessWidget {
   }
 
   Widget _modeSection(BuildContext context, HomeController ctrl, GameMode mode) {
-    final color = HomeController.gameModeColor(mode);
+    final color = SudokuColors.of(context).modeColor(mode);
     final best = _bestInMode(ctrl, mode);
 
     return Card(
@@ -291,6 +292,7 @@ class RecordsPage extends StatelessWidget {
             ),
             for (final diff in Difficulty.values)
               _recordRow(
+                context,
                 ctrl,
                 mode,
                 diff,
@@ -315,13 +317,14 @@ class RecordsPage extends StatelessWidget {
   }
 
   Widget _recordRow(
+    BuildContext context,
     HomeController ctrl,
     GameMode mode,
     Difficulty diff, {
     required bool isBest,
   }) {
     final time = ctrl.bestTimeFor(mode, diff);
-    final color = HomeController.gameModeColor(mode);
+    final color = SudokuColors.of(context).modeColor(mode);
 
     return ListTile(
       key: ValueKey('record-${mode.name}-${diff.name}'),

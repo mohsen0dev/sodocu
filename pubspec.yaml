@@ -32,4 +32,4 @@ flutter:
   fonts:
     - family: Vazirmatn
       fonts:
-        - asset: fonts/vazir.ttf
+        - asset: assets/fonts/vazir.ttf

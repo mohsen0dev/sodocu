@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:sodocu/home/records_page.dart';
+import 'package:sodocu/theme/sudoku_colors.dart';
 
 import 'home_controller.dart';
 import 'widgets/board_animations.dart';
@@ -331,7 +332,7 @@ class _SudokuBoardState extends State<SudokuBoard> {
                 value: ctrl.gameMode.value == GameMode.timed
                     ? ctrl.formatDuration(ctrl.remainingSeconds.value)
                     : ctrl.formatDuration(ctrl.elapsedSeconds.value),
-                color: Colors.blue,
+                color: Theme.of(context).colorScheme.primary,
               ),
             ),
             const SizedBox(width: 12),
@@ -349,8 +350,8 @@ class _SudokuBoardState extends State<SudokuBoard> {
                   ),
                   color:
                       ctrl.mistakes.value >= HomeController.maxMistakes - 1
-                          ? Colors.red
-                          : Colors.deepOrange,
+                          ? SudokuColors.of(context).danger
+                          : SudokuColors.of(context).warning,
                 ),
               ),
               const SizedBox(width: 12),
@@ -362,7 +363,7 @@ class _SudokuBoardState extends State<SudokuBoard> {
                 value: ctrl.bestTimes[ctrl.recordKey] == null
                     ? '--:--'
                     : ctrl.formatDuration(ctrl.bestTimes[ctrl.recordKey]!),
-                color: Colors.amber,
+                color: SudokuColors.of(context).record,
               ),
             ),
           ],
@@ -471,12 +472,12 @@ class _SudokuBoardState extends State<SudokuBoard> {
             mainAxisSize: MainAxisSize.min,
             children: [
               if (ctrl.noteMode.value)
-                const Padding(
-                  padding: EdgeInsets.only(bottom: 8),
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
                   child: Text(
                     'حالت یادداشت',
                     style: TextStyle(
-                      color: Colors.blue,
+                      color: Theme.of(context).colorScheme.primary,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -522,7 +523,7 @@ class _SudokuBoardState extends State<SudokuBoard> {
                                 ? theme.colorScheme.onSurface
                                       .withValues(alpha: 0.38)
                                 : ctrl.noteMode.value && isNote
-                                ? Colors.orange
+                                ? SudokuColors.of(context).hint
                                 : theme.colorScheme.primary,
                           ),
                         ),
@@ -580,17 +581,25 @@ class _SudokuBoardState extends State<SudokuBoard> {
                   child: Container(
                     padding: const EdgeInsets.symmetric(vertical: 8),
                     decoration: BoxDecoration(
-                      color: Colors.orange.withValues(alpha: 0.15),
+                      color: SudokuColors.of(context).hint.withValues(
+                        alpha: 0.15,
+                      ),
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: const Row(
+                    child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.clear_all, color: Colors.orange, size: 18),
-                        SizedBox(width: 4),
+                        Icon(
+                          Icons.clear_all,
+                          color: SudokuColors.of(context).hint,
+                          size: 18,
+                        ),
+                        const SizedBox(width: 4),
                         Text(
                           'حذف یادداشت‌ها',
-                          style: TextStyle(color: Colors.orange),
+                          style: TextStyle(
+                            color: SudokuColors.of(context).hint,
+                          ),
                         ),
                       ],
                     ),

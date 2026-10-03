@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:sodocu/theme/sudoku_colors.dart';
 
 import '../home_controller.dart';
 
@@ -129,7 +130,7 @@ class _ModeCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = HomeController.gameModeColor(mode);
+    final color = SudokuColors.of(context).modeColor(mode);
     final isSelected = mode == selected;
     final dailyDisabled = mode == GameMode.daily && controller.dailyAttemptUsed;
 
@@ -315,7 +316,7 @@ class ModeQuickButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return Obx(() {
       final mode = controller.gameMode.value;
-      final color = HomeController.gameModeColor(mode);
+      final color = SudokuColors.of(context).modeColor(mode);
       return Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 460),

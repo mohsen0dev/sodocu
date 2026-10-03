@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:sodocu/theme/app_fonts.dart';
 
 import 'app_radii.dart';
 import 'sudoku_colors.dart';
@@ -6,6 +7,7 @@ import 'sudoku_colors.dart';
 /// Light theme for the app.
 ThemeData get lightTheme => ThemeData(
   useMaterial3: true,
+  fontFamily: AppFonts.vazirmatn,
   brightness: Brightness.light,
   colorScheme: ColorScheme.fromSeed(
     seedColor: Colors.blue,
@@ -18,9 +20,7 @@ ThemeData get lightTheme => ThemeData(
     headlineSmall: TextStyle(),
     labelMedium: TextStyle(),
   ),
-  extensions: const [
-    SudokuColors.light,
-  ],
+  extensions: const [SudokuColors.light],
   appBarTheme: AppBarTheme(
     centerTitle: true,
     elevation: 0,
@@ -81,6 +81,7 @@ ThemeData get lightTheme => ThemeData(
 /// Dark theme for the app.
 ThemeData get darkTheme => ThemeData(
   useMaterial3: true,
+  fontFamily: AppFonts.vazirmatn,
   brightness: Brightness.dark,
   colorScheme: ColorScheme.fromSeed(
     seedColor: Colors.blue,
@@ -93,9 +94,7 @@ ThemeData get darkTheme => ThemeData(
     headlineSmall: TextStyle(),
     labelMedium: TextStyle(),
   ),
-  extensions: const [
-    SudokuColors.dark,
-  ],
+  extensions: const [SudokuColors.dark],
   appBarTheme: AppBarTheme(
     centerTitle: true,
     elevation: 0,
