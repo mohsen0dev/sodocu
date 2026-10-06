@@ -38,8 +38,10 @@ class NumberBar extends StatelessWidget {
             child: LayoutBuilder(
               builder: (context, constraints) {
                 const gap = 6.0;
-                final cellSize =
-                    ((constraints.maxWidth - gap * 9) / 10).clamp(28.0, 46.0);
+                final cellSize = ((constraints.maxWidth - gap * 9) / 10).clamp(
+                  28.0,
+                  46.0,
+                );
 
                 return Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -83,79 +85,77 @@ class _NumberTile extends StatelessWidget {
       final theme = Theme.of(context);
       final accent = isDelete ? Colors.red : Colors.blue;
       final tileColor = isSelected
-          ? (isDelete
-                ? Colors.red.shade700
-                : Colors.blue.shade700)
+          ? (isDelete ? Colors.red.shade700 : Colors.blue.shade700)
           : theme.colorScheme.surfaceContainerHigh.withValues(alpha: 0.4);
       final borderColor = isSelected
           ? (isDelete ? Colors.redAccent : Colors.lightBlueAccent)
           : theme.colorScheme.outlineVariant;
 
-      return GestureDetector(
-        onTap: isDisabled
-            ? null
-            : () => controller.setNumber(number),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          width: cellSize,
-          height: cellSize,
-          key: ValueKey('number-button-$number'),
-          decoration: BoxDecoration(
-            color: tileColor,
-            border: Border.all(
-              color: borderColor,
-              width: isSelected ? 2 : 1,
+      return Semantics(
+        label: isDelete ? 'دکمه حذف عدد' : 'عدد $number، $used بار استفاده شده',
+        selected: isSelected,
+        child: GestureDetector(
+          onTap: isDisabled ? null : () => controller.setNumber(number),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            width: cellSize,
+            height: cellSize,
+            key: ValueKey('number-button-$number'),
+            decoration: BoxDecoration(
+              color: tileColor,
+              border: Border.all(color: borderColor, width: isSelected ? 2 : 1),
+              borderRadius: BorderRadius.circular(10),
+              boxShadow: isSelected
+                  ? [
+                      BoxShadow(
+                        color: accent.withValues(alpha: 0.45),
+                        blurRadius: 8,
+                        spreadRadius: 1,
+                      ),
+                    ]
+                  : null,
             ),
-            borderRadius: BorderRadius.circular(10),
-            boxShadow: isSelected
-                ? [
-                    BoxShadow(
-                      color: accent.withValues(alpha: 0.45),
-                      blurRadius: 8,
-                      spreadRadius: 1,
-                    ),
-                  ]
-                : null,
+            child: isDelete
+                ? Icon(
+                    Icons.delete_outline,
+                    color: isSelected ? Colors.white : Colors.red.shade300,
+                    size: cellSize.clamp(18.0, 26.0),
+                  )
+                : Stack(
+                    children: [
+                      Positioned(
+                        top: 2,
+                        right: 3,
+                        child: Text(
+                          used.toString(),
+                          style: TextStyle(
+                            fontSize: 9,
+                            fontWeight: FontWeight.w600,
+                            color: isSelected
+                                ? Colors.white70
+                                : theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ),
+                      Center(
+                        child: Text(
+                          number.toString(),
+                          style: TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.w600,
+                            color: isDisabled
+                                ? theme.colorScheme.onSurface.withValues(
+                                    alpha: 0.38,
+                                  )
+                                : isSelected
+                                ? Colors.white
+                                : theme.colorScheme.onSurface,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
           ),
-          child: isDelete
-              ? Icon(
-                  Icons.delete_outline,
-                  color: isSelected ? Colors.white : Colors.red.shade300,
-                  size: cellSize.clamp(18.0, 26.0),
-                )
-              : Stack(
-                  children: [
-                    Positioned(
-                      top: 2,
-                      right: 3,
-                      child: Text(
-                        used.toString(),
-                        style: TextStyle(
-                          fontSize: 9,
-                          fontWeight: FontWeight.w600,
-                          color: isSelected
-                              ? Colors.white70
-                              : theme.colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ),
-                    Center(
-                      child: Text(
-                        number.toString(),
-                        style: TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.w600,
-                          color: isDisabled
-                              ? theme.colorScheme.onSurface
-                                    .withValues(alpha: 0.38)
-                              : isSelected
-                              ? Colors.white
-                              : theme.colorScheme.onSurface,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
         ),
       );
     });

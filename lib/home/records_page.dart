@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
+import '../theme/app_dialogs.dart';
+import '../theme/sudoku_colors.dart';
 import 'home_controller.dart';
 
 /// صفحهٔ نمایش رکوردهای محلی (بهترین زمان) برای هر حالت و سطح دشواری.
@@ -24,18 +26,12 @@ class RecordsPage extends StatelessWidget {
   }
 
   void _confirmDelete(HomeController ctrl, GameMode mode, Difficulty diff) {
-    Get.defaultDialog(
+    showConfirmDialog(
       title: 'حذف رکورد',
-      titleStyle: const TextStyle(
-        fontSize: 20,
-        fontWeight: FontWeight.bold,
-        color: Colors.red,
-      ),
-      middleText:
+      message:
           'رکورد «${HomeController.gameModeLabel(mode)} — ${_diffText(diff)}» حذف شود؟',
-      textCancel: 'انصراف',
-      textConfirm: 'حذف',
-      buttonColor: Colors.red,
+      confirmLabel: 'حذف',
+      accent: SudokuColors.danger,
       onConfirm: () {
         ctrl.clearBestTime(mode, diff);
         Get.back();
@@ -44,17 +40,11 @@ class RecordsPage extends StatelessWidget {
   }
 
   void _confirmResetAll(HomeController ctrl) {
-    Get.defaultDialog(
+    showConfirmDialog(
       title: 'پاک کردن همه رکوردها',
-      titleStyle: const TextStyle(
-        fontSize: 20,
-        fontWeight: FontWeight.bold,
-        color: Colors.red,
-      ),
-      middleText: 'همهٔ بهترین زمان‌ها برای همیشه حذف شوند؟',
-      textCancel: 'انصراف',
-      textConfirm: 'پاک کردن',
-      buttonColor: Colors.red,
+      message: 'همهٔ بهترین زمان‌ها برای همیشه حذف شوند؟',
+      confirmLabel: 'پاک کردن',
+      accent: SudokuColors.danger,
       onConfirm: () {
         ctrl.clearAllBestTimes();
         Get.back();
@@ -232,14 +222,22 @@ class RecordsPage extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: color, size: 18),
-          const SizedBox(height: 6),
+          Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.18),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, color: color, size: 18),
+          ),
+          const SizedBox(height: 10),
           Text(
             value,
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
               color: color,
+              fontFeatures: const [FontFeature.tabularFigures()],
             ),
           ),
           const SizedBox(height: 2),
@@ -275,7 +273,18 @@ class RecordsPage extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
               child: Row(
                 children: [
-                  Icon(HomeController.gameModeIcon(mode), color: color, size: 22),
+                  Container(
+                    padding: const EdgeInsets.all(7),
+                    decoration: BoxDecoration(
+                      color: color.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(
+                      HomeController.gameModeIcon(mode),
+                      color: color,
+                      size: 18,
+                    ),
+                  ),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
@@ -291,6 +300,7 @@ class RecordsPage extends StatelessWidget {
             ),
             for (final diff in Difficulty.values)
               _recordRow(
+                context,
                 ctrl,
                 mode,
                 diff,
@@ -315,6 +325,7 @@ class RecordsPage extends StatelessWidget {
   }
 
   Widget _recordRow(
+    BuildContext context,
     HomeController ctrl,
     GameMode mode,
     Difficulty diff, {
@@ -332,9 +343,14 @@ class RecordsPage extends StatelessWidget {
           Text(
             time == null ? '--:--' : ctrl.formatDuration(time),
             style: TextStyle(
-              fontWeight: isBest ? FontWeight.bold : FontWeight.normal,
-              color: isBest ? Colors.amber : null,
+              fontWeight: isBest ? FontWeight.bold : FontWeight.w600,
+              color: isBest
+                  ? Colors.amber
+                  : time == null
+                  ? Theme.of(context).colorScheme.onSurfaceVariant
+                  : null,
               fontSize: isBest ? 18 : 16,
+              fontFeatures: const [FontFeature.tabularFigures()],
             ),
           ),
         ],

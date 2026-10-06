@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:sodocu/home/records_page.dart';
+import 'package:sodocu/theme/sudoku_colors.dart';
 
 import 'home_controller.dart';
 import 'widgets/board_animations.dart';
@@ -331,7 +332,7 @@ class _SudokuBoardState extends State<SudokuBoard> {
                 value: ctrl.gameMode.value == GameMode.timed
                     ? ctrl.formatDuration(ctrl.remainingSeconds.value)
                     : ctrl.formatDuration(ctrl.elapsedSeconds.value),
-                color: Colors.blue,
+                color: SudokuColors.primary,
               ),
             ),
             const SizedBox(width: 12),
@@ -349,8 +350,8 @@ class _SudokuBoardState extends State<SudokuBoard> {
                   ),
                   color:
                       ctrl.mistakes.value >= HomeController.maxMistakes - 1
-                          ? Colors.red
-                          : Colors.deepOrange,
+                          ? SudokuColors.danger
+                          : SudokuColors.ember,
                 ),
               ),
               const SizedBox(width: 12),
@@ -362,7 +363,7 @@ class _SudokuBoardState extends State<SudokuBoard> {
                 value: ctrl.bestTimes[ctrl.recordKey] == null
                     ? '--:--'
                     : ctrl.formatDuration(ctrl.bestTimes[ctrl.recordKey]!),
-                color: Colors.amber,
+                color: SudokuColors.highlight,
               ),
             ),
           ],
@@ -413,6 +414,7 @@ class _SudokuBoardState extends State<SudokuBoard> {
     Widget? valueWidget,
     required Color color,
   }) {
+    // در پنجره‌های باریک (مینی‌موم دسکتاپ) متن‌ها نباید سرریز شوند.
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
@@ -422,22 +424,34 @@ class _SudokuBoardState extends State<SudokuBoard> {
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
         children: [
           Icon(icon, color: color, size: 22),
           const SizedBox(width: 8),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(title, style: const TextStyle(fontSize: 12)),
-              valueWidget ??
-                  Text(
-                    value!,
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
+          Flexible(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 12),
+                ),
+                valueWidget ??
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        value!,
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                     ),
-                  ),
-            ],
+              ],
+            ),
           ),
         ],
       ),

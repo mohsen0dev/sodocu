@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:sodocu/home/home.dart';
 import 'package:sodocu/home/home_bindings.dart';
+import 'package:sodocu/theme/app_theme.dart';
 // import 'package:sodocu/home/home_page.dart';
 // import 'package:window_manager/window_manager.dart';
 
@@ -36,12 +37,8 @@ class SudokuApp extends StatelessWidget {
       textDirection: TextDirection.rtl,
 
       themeMode: ThemeMode.dark,
-      darkTheme: ThemeData.dark().copyWith(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: Colors.blue,
-          brightness: Brightness.dark,
-        ),
-      ),
+      theme: SudokuAppTheme.light,
+      darkTheme: SudokuAppTheme.dark,
 
       // home: SudokuBoard(),
       home: SudokuBoard(),

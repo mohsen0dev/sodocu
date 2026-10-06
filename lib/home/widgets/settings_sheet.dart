@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
+import '../../theme/app_dialogs.dart';
+import '../../theme/sudoku_colors.dart';
 import '../home_controller.dart';
 import '../../abute/abute_page.dart';
 
@@ -285,18 +287,12 @@ void _confirmCleanInvalidNotes(
   HomeController ctrl,
   int invalidCount,
 ) {
-  Get.defaultDialog(
+  showConfirmDialog(
     title: 'پاک‌سازی یادداشت‌ها',
-    titleStyle: const TextStyle(
-      fontSize: 20,
-      fontWeight: FontWeight.bold,
-      color: Colors.orange,
-    ),
-    middleText:
+    message:
         '$invalidCount یادداشت نامعتبر پیدا شد.\nآیا می‌خواهید همهٔ آن‌ها پاک شوند؟',
-    textCancel: 'انصراف',
-    textConfirm: 'پاک‌سازی',
-    buttonColor: Colors.orange,
+    confirmLabel: 'پاک‌سازی',
+    accent: SudokuColors.warning,
     onConfirm: () {
       Get.back();
       ctrl.cleanInvalidNotes();

@@ -9,11 +9,7 @@ import 'board_animations.dart';
 /// [onCellTap] با مختصات `(row, col, globalPosition)` فراخوانی می‌شود
 /// تا والد تصمیم بگیرد picker باز شود یا عدد مستقیماً ثبت شود.
 class SudokuGrid extends StatelessWidget {
-  const SudokuGrid({
-    required this.controller,
-    this.onCellTap,
-    super.key,
-  });
+  const SudokuGrid({required this.controller, this.onCellTap, super.key});
 
   final HomeController controller;
 
@@ -23,61 +19,83 @@ class SudokuGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    // قاب دور جدول: فقط ظاهر (گردی، سایه، حاشیه) — هیچ رفتاری از بازی
+    // (بوردر نارنجی/سبز، هایلایت‌ها) از این لایه عبور نمی‌کند.
     return ConstrainedBox(
       constraints: const BoxConstraints(maxWidth: 460),
-      child: GridView.builder(
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 3,
-          crossAxisSpacing: 4,
-          mainAxisSpacing: 4,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: scheme.surfaceContainerHighest.withValues(alpha: 0.4),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: scheme.outlineVariant),
+          boxShadow: [
+            BoxShadow(
+              color: scheme.shadow.withValues(alpha: isDark ? 0.45 : 0.12),
+              blurRadius: 28,
+              offset: const Offset(0, 10),
+            ),
+          ],
         ),
-        itemCount: 9,
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        itemBuilder: (context, bigIdx) {
-          return Obx(() {
-            return Container(
-              decoration: BoxDecoration(
-                border: Border.all(
-                  color: controller.isActive.value
-                      ? Colors.green
-                      : Theme.of(context).colorScheme.outlineVariant,
-                  width: 1.5,
-                ),
-              ),
-              child: GridView.builder(
-                physics: const NeverScrollableScrollPhysics(),
-                gridDelegate:
-                    const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 3,
-                ),
-                itemCount: 9,
-                itemBuilder: (context, smallIdx) {
-                  final row = (bigIdx ~/ 3) * 3 + (smallIdx ~/ 3);
-                  final col = (bigIdx % 3) * 3 + (smallIdx % 3);
+        child: Padding(
+          padding: const EdgeInsets.all(6),
+          child: GridView.builder(
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 3,
+              crossAxisSpacing: 4,
+              mainAxisSpacing: 4,
+            ),
+            itemCount: 9,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemBuilder: (context, bigIdx) {
+              return Obx(() {
+                return Container(
+                  decoration: BoxDecoration(
+                    border: Border.all(
+                      color: controller.isActive.value
+                          ? Colors.green
+                          : Theme.of(context).colorScheme.outlineVariant,
+                      width: 1.5,
+                    ),
+                  ),
+                  child: GridView.builder(
+                    physics: const NeverScrollableScrollPhysics(),
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 3,
+                        ),
+                    itemCount: 9,
+                    itemBuilder: (context, smallIdx) {
+                      final row = (bigIdx ~/ 3) * 3 + (smallIdx ~/ 3);
+                      final col = (bigIdx % 3) * 3 + (smallIdx % 3);
 
-                  // خانه‌های ثابت (پازل اولیه)
-                  if (controller.puzzle != null &&
-                      controller.puzzle![row][col] != 0) {
-                    return _FixedCell(
-                      row: row,
-                      col: col,
-                      controller: controller,
-                    );
-                  }
+                      // خانه‌های ثابت (پازل اولیه)
+                      if (controller.puzzle != null &&
+                          controller.puzzle![row][col] != 0) {
+                        return _FixedCell(
+                          row: row,
+                          col: col,
+                          controller: controller,
+                        );
+                      }
 
-                  // خانه‌های قابل ویرایش
-                  return _EditableCell(
-                    row: row,
-                    col: col,
-                    controller: controller,
-                    onTap: onCellTap,
-                  );
-                },
-              ),
-            );
-          });
-        },
+                      // خانه‌های قابل ویرایش
+                      return _EditableCell(
+                        row: row,
+                        col: col,
+                        controller: controller,
+                        onTap: onCellTap,
+                      );
+                    },
+                  ),
+                );
+              });
+            },
+          ),
+        ),
       ),
     );
   }
@@ -104,7 +122,7 @@ class _FixedCell extends StatelessWidget {
       child: Obx(() {
         final cellValue = controller.cells[row][col].value;
         final highlight = controller.selectedNumber.value == cellValue;
-        return RepaintBoundary(
+        final cell = RepaintBoundary(
           child: AnimatedCellContainer(
             row: row,
             col: col,
@@ -126,6 +144,11 @@ class _FixedCell extends StatelessWidget {
               ),
             ),
           ),
+        );
+        return Semantics(
+          container: true,
+          label: 'خانهٔ ثابت، عدد $cellValue، ردیف ${row + 1}، ستون ${col + 1}',
+          child: cell,
         );
       }),
     );
@@ -178,12 +201,11 @@ class _EditableCell extends StatelessWidget {
             final hasNotes = controller.cells[row][col].notes.isNotEmpty;
             final value = controller.cells[row][col].value;
             final isSelectedCell =
-                controller.selectedRow == row &&
-                controller.selectedCol == col;
+                controller.selectedRow == row && controller.selectedCol == col;
             final isSelectedNumber =
                 value != 0 && controller.selectedNumber.value == value;
 
-            return AnimatedCellContainer(
+            final cell = AnimatedCellContainer(
               row: row,
               col: col,
               ctrl: controller,
@@ -192,9 +214,7 @@ class _EditableCell extends StatelessWidget {
               borderColor: controller.selectedNumber.value == value
                   ? Colors.orange
                   : Colors.grey.shade300,
-              borderWidth: controller.selectedNumber.value == value
-                  ? 1.5
-                  : 1,
+              borderWidth: controller.selectedNumber.value == value ? 1.5 : 1,
               backgroundColor: isSelectedCell
                   ? Colors.amber.withValues(alpha: 0.12)
                   : isSelectedNumber
@@ -207,12 +227,8 @@ class _EditableCell extends StatelessWidget {
                     Center(
                       child: AnimatedBoardNumber(
                         number: value,
-                        celebratingNumber:
-                            controller.celebratingNumber.value,
-                        celebrateRegion: controller.isCellCelebrating(
-                          row,
-                          col,
-                        ),
+                        celebratingNumber: controller.celebratingNumber.value,
+                        celebrateRegion: controller.isCellCelebrating(row, col),
                         regionCelebrationToken:
                             controller.celebrationToken.value,
                         fontSize: 30,
@@ -221,10 +237,7 @@ class _EditableCell extends StatelessWidget {
                       ),
                     )
                   else if (hasNotes)
-                    _buildNotesGrid(
-                      context,
-                      controller.cells[row][col].notes,
-                    ),
+                    _buildNotesGrid(context, controller.cells[row][col].notes),
                   if (hasNotes)
                     Positioned(
                       top: 0,
@@ -232,8 +245,7 @@ class _EditableCell extends StatelessWidget {
                       child: Tooltip(
                         message: 'حذف همه یادداشت‌ها',
                         child: InkWell(
-                          onTap: () =>
-                              controller.clearNotes(row, col),
+                          onTap: () => controller.clearNotes(row, col),
                           child: const Padding(
                             padding: EdgeInsets.all(1),
                             child: Icon(
@@ -247,6 +259,15 @@ class _EditableCell extends StatelessWidget {
                     ),
                 ],
               ),
+            );
+
+            return Semantics(
+              container: true,
+              label: value == 0
+                  ? 'خانهٔ خالی، ردیف ${row + 1}، ستون ${col + 1}'
+                  : 'عدد $value، ردیف ${row + 1}، ستون ${col + 1}',
+              selected: isSelectedCell,
+              child: cell,
             );
           }),
         ),

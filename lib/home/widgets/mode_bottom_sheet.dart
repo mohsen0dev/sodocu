@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
+import '../../theme/app_dialogs.dart';
+import '../../theme/sudoku_colors.dart';
 import '../home_controller.dart';
 
 /// نمایش شیت انتخاب حالت بازی و سطح دشواری.
@@ -17,6 +19,13 @@ Future<void> showModeSheet(BuildContext context, HomeController ctrl) {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Text(
+                  'حالت و سطح',
+                  style: Theme.of(sheetContext).textTheme.titleLarge,
+                ),
+              ),
               // دکمهٔ شروع بازی جدید
               FilledButton.icon(
                 onPressed: () => _confirmNewGame(context, ctrl),
@@ -31,7 +40,10 @@ Future<void> showModeSheet(BuildContext context, HomeController ctrl) {
                 padding: const EdgeInsets.only(bottom: 12),
                 child: Text(
                   'حالت بازی',
-                  style: Theme.of(sheetContext).textTheme.titleLarge,
+                  style: Theme.of(sheetContext).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: Theme.of(sheetContext).colorScheme.onSurfaceVariant,
+                  ),
                 ),
               ),
               ModeSelector(controller: ctrl),
@@ -50,17 +62,12 @@ Future<void> showModeSheet(BuildContext context, HomeController ctrl) {
 // ---------------------------------------------------------------------------
 
 void _confirmNewGame(BuildContext context, HomeController ctrl) {
-  Get.defaultDialog(
+  showConfirmDialog(
     title: 'شروع بازی جدید',
-    titleStyle: TextStyle(
-      fontSize: 20,
-      fontWeight: FontWeight.bold,
-      color: Theme.of(context).colorScheme.primary,
-    ),
-    middleText: 'آیا مطمئن هستید؟ جدول فعلی پاک می‌شود.',
-    textCancel: 'نه',
-    textConfirm: 'بله',
-    buttonColor: Colors.blue,
+    message: 'آیا مطمئن هستید؟ جدول فعلی پاک می‌شود.',
+    confirmLabel: 'بله',
+    cancelLabel: 'نه',
+    accent: SudokuColors.primary,
     onConfirm: () {
       ctrl.newGame();
       Get.back();
@@ -281,18 +288,13 @@ void _confirmChangeDifficulty(
   HomeController ctrl,
   Difficulty newDiff,
 ) {
-  Get.defaultDialog(
+  showConfirmDialog(
     title: 'تغییر سطح',
-    titleStyle: TextStyle(
-      fontSize: 20,
-      fontWeight: FontWeight.bold,
-      color: Theme.of(context).colorScheme.primary,
-    ),
-    middleText:
+    message:
         'آیا می‌خواهید سطح را به "${diffText(newDiff)}" تغییر دهید؟\nجدول فعلی حذف می‌شود',
-    textCancel: 'نه',
-    textConfirm: 'بله',
-    buttonColor: Colors.blueAccent,
+    confirmLabel: 'بله',
+    cancelLabel: 'نه',
+    accent: SudokuColors.primary,
     onConfirm: () {
       ctrl.difficulty.value = newDiff;
       Get.back();
