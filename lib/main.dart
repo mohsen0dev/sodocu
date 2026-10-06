@@ -3,12 +3,16 @@ import 'package:get/get.dart';
 import 'package:sodocu/home/home.dart';
 import 'package:sodocu/home/home_bindings.dart';
 import 'package:sodocu/theme/app_theme.dart';
+import 'package:sodocu/theme/theme_controller.dart';
 // import 'package:sodocu/home/home_page.dart';
 // import 'package:window_manager/window_manager.dart';
 
 void main() async {
 
   WidgetsFlutterBinding.ensureInitialized();
+
+  // خواندن تم ذخیره‌شدهٔ کاربر (در صورت خطا، تم پیش‌فرض حفظ می‌شود).
+  await ThemeController.load();
 
   // await windowManager.ensureInitialized();
 
@@ -31,18 +35,23 @@ class SudokuApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GetMaterialApp(
-      
-      debugShowCheckedModeBanner: false,
-      textDirection: TextDirection.rtl,
+    // themeMode از کنترلر تم می‌آید تا با فشردن دکمهٔ تغییر تم،
+    // کل اپ با انیمیشن به‌روز شود.
+    return ValueListenableBuilder<ThemeMode>(
+      valueListenable: ThemeController.mode,
+      builder: (context, themeMode, _) {
+        return GetMaterialApp(
+          debugShowCheckedModeBanner: false,
+          textDirection: TextDirection.rtl,
 
-      themeMode: ThemeMode.dark,
-      theme: SudokuAppTheme.light,
-      darkTheme: SudokuAppTheme.dark,
+          themeMode: themeMode,
+          theme: SudokuAppTheme.light,
+          darkTheme: SudokuAppTheme.dark,
 
-      // home: SudokuBoard(),
-      home: SudokuBoard(),
-      initialBinding: HomeBindings(),
+          home: SudokuBoard(),
+          initialBinding: HomeBindings(),
+        );
+      },
     );
   }
 }

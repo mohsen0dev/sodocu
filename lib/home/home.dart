@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:sodocu/home/records_page.dart';
 import 'package:sodocu/theme/sudoku_colors.dart';
+import 'package:sodocu/theme/theme_toggle_button.dart';
 
 import 'home_controller.dart';
 import 'widgets/board_animations.dart';
@@ -198,6 +199,7 @@ class _SudokuBoardState extends State<SudokuBoard> {
         centerTitle: true,
         elevation: 0,
         actions: [
+          const ThemeToggleButton(),
           IconButton(
             tooltip: 'شروع بازی جدید',
             onPressed: () => confirmNewGameDialog(context, ctrl),
