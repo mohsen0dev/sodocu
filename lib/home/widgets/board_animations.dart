@@ -218,6 +218,12 @@ class _AnimatedCellContainerState extends State<AnimatedCellContainer>
 
   @override
   Widget build(BuildContext context) {
+    const cornerRadius = Radius.circular(8);
+    final isTop = widget.row % 3 == 0;
+    final isBottom = widget.row % 3 == 2;
+    final isLeft = widget.col % 3 == 0;
+    final isRight = widget.col % 3 == 2;
+
     return AnimatedBuilder(
       animation: Listenable.merge([_controller, _mistakeController]),
       builder: (context, child) {
@@ -248,7 +254,14 @@ class _AnimatedCellContainerState extends State<AnimatedCellContainer>
         return Transform.translate(
           offset: Offset(shake, 0),
           child: Container(
+            clipBehavior: Clip.antiAlias,
             decoration: BoxDecoration(
+              borderRadius: BorderRadius.only(
+                topRight: isTop && isLeft ? cornerRadius : Radius.zero,
+                topLeft: isTop && isRight ? cornerRadius : Radius.zero,
+                bottomRight: isBottom && isLeft ? cornerRadius : Radius.zero,
+                bottomLeft: isBottom && isRight ? cornerRadius : Radius.zero,
+              ),
               border: Border.all(
                 color: isMistakeAnimating ? Colors.red : widget.borderColor,
                 width: isMistakeAnimating ? 2 : widget.borderWidth,

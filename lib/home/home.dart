@@ -267,10 +267,20 @@ class _SudokuBoardState extends State<SudokuBoard> {
                     children: [
                       _gameInfoWidget(),
                       _progressBarWidget(),
-                      ModeQuickButton(
-                        controller: ctrl,
-                        onPressed: () =>
-                            showModeSheet(context, ctrl),
+                      ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 460),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: ModeQuickButton(
+                                controller: ctrl,
+                                onPressed: () => showModeSheet(context, ctrl),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            _quickHelperButton(),
+                          ],
+                        ),
                       ),
                       SudokuGrid(
                         controller: ctrl,
@@ -317,6 +327,74 @@ class _SudokuBoardState extends State<SudokuBoard> {
         ),
       ],
     );
+  }
+
+  Widget _quickHelperButton() {
+    return Obx(() {
+      final remaining = ctrl.maxHelperUses - ctrl.currentHelperUses.value;
+      final hintsDisabled = !ctrl.hintsEnabled;
+      final isGameOver = ctrl.isGameOver.value;
+      final isDisabled =
+          hintsDisabled || remaining == 0 || isGameOver || ctrl.isLoading.value;
+      final colorScheme = Theme.of(context).colorScheme;
+      final activeColor = isDisabled
+          ? colorScheme.onSurfaceVariant
+          : Colors.amber.shade800;
+      final tooltip = hintsDisabled
+          ? 'راهنما در این حالت غیرفعال است'
+          : remaining == 0
+          ? 'از تمام کمک‌ها استفاده کردید'
+          : isGameOver
+          ? 'بازی به پایان رسیده'
+          : 'استفاده از راهنما؛ $remaining کمک باقی‌مانده';
+
+      return Tooltip(
+        message: tooltip,
+        child: Semantics(
+          button: true,
+          enabled: !isDisabled,
+          label: tooltip,
+          child: Material(
+            color: Colors.transparent,
+            borderRadius: BorderRadius.circular(10),
+            child: InkWell(
+              onTap: isDisabled ? null : ctrl.useHelper,
+              borderRadius: BorderRadius.circular(10),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 9,
+                  vertical: 10,
+                ),
+                decoration: BoxDecoration(
+                  border: Border.all(color: activeColor.withValues(alpha: 0.5)),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: List.generate(ctrl.maxHelperUses, (index) {
+                    final available = !isDisabled && index < remaining;
+                    return Padding(
+                      padding: EdgeInsetsDirectional.only(
+                        start: index == 0 ? 0 : 3,
+                      ),
+                      child: Icon(
+                        available ? Icons.lightbulb : Icons.lightbulb_outline,
+                        size: 18,
+                        color: available
+                            ? Colors.amber
+                            : colorScheme.onSurfaceVariant.withValues(
+                                alpha: 0.55,
+                              ),
+                      ),
+                    );
+                  }),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    });
   }
 
   Widget _gameInfoWidget() {

@@ -54,6 +54,7 @@ class SudokuGrid extends StatelessWidget {
               return Obx(() {
                 return Container(
                   decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(8),
                     border: Border.all(
                       color: controller.isActive.value
                           ? Colors.green
