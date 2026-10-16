@@ -212,9 +212,9 @@ class _EditableCell extends StatelessWidget {
               mistakeFlashToken: controller.mistakeFlashToken.value,
               isMistake: controller.isMistakeCell(row, col),
               borderColor: controller.selectedNumber.value == value
-                  ? Colors.orange
-                  : Colors.grey.shade300,
-              borderWidth: controller.selectedNumber.value == value ? 1.5 : 1,
+                  ? Colors.grey.shade600
+                  : Colors.grey.shade600,
+              borderWidth: controller.selectedNumber.value == value ? 1 : 1,
               backgroundColor: isSelectedCell
                   ? Colors.amber.withValues(alpha: 0.12)
                   : isSelectedNumber

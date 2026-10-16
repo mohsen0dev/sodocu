@@ -4,8 +4,7 @@ import 'package:sodocu/home/home.dart';
 import 'package:sodocu/home/home_bindings.dart';
 import 'package:sodocu/theme/app_theme.dart';
 import 'package:sodocu/theme/theme_controller.dart';
-// import 'package:sodocu/home/home_page.dart';
-// import 'package:window_manager/window_manager.dart';
+import 'package:window_manager/window_manager.dart';
 
 void main() async {
 
@@ -14,19 +13,19 @@ void main() async {
   // خواندن تم ذخیره‌شدهٔ کاربر (در صورت خطا، تم پیش‌فرض حفظ می‌شود).
   await ThemeController.load();
 
-  // await windowManager.ensureInitialized();
+  await windowManager.ensureInitialized();
 
-  // WindowOptions windowOptions = const WindowOptions(
-  // minimumSize: Size(400, 600),
-  // titleBarStyle: TitleBarStyle.normal,
-  // windowButtonVisibility: false,
-  // center: true,
-  // );
+  WindowOptions windowOptions = const WindowOptions(
+  minimumSize: Size(400, 600),
+  titleBarStyle: TitleBarStyle.normal,
+  windowButtonVisibility: false,
+  center: true,
+  );
 
-  // windowManager.waitUntilReadyToShow(windowOptions, () async {
-  //   await windowManager.show();
-  //   await windowManager.focus();
-  // });
+  windowManager.waitUntilReadyToShow(windowOptions, () async {
+    await windowManager.show();
+    await windowManager.focus();
+  });
   runApp(SudokuApp());
 }
 

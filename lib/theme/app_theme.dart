@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:sodocu/theme/app_fonts.dart';
 
 import 'sudoku_colors.dart';
 
@@ -31,6 +32,7 @@ abstract final class SudokuAppTheme {
     return ThemeData(
       useMaterial3: true,
       brightness: brightness,
+      fontFamily: AppFonts.vazirmatn,
       colorScheme: scheme,
       scaffoldBackgroundColor: scaffoldBg,
       splashFactory: InkSparkle.splashFactory,
